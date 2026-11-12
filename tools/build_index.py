@@ -21,6 +21,8 @@ from pathlib import Path
 import jsonschema
 from referencing import Registry, Resource
 
+from check_package import irregular_files
+
 ROOT = Path(__file__).resolve().parent.parent
 PUBLISHED_FILES = ("manifest.json", "README.md", "LICENSE")
 
@@ -60,6 +62,10 @@ def build(out: Path, previous: Path | None, published: str, root: Path = ROOT) -
     missing = sorted({e["id"] for e in old["extensions"]} - {p.name for p in folders})
     if missing:
         raise BuildError(f"published packages have no folder: {', '.join(missing)}. Mark them withdrawn in status.json instead of deleting them.")
+
+    for folder in folders:
+        if irregular := irregular_files(folder):
+            raise BuildError(f"{', '.join(f'{folder.name}/{name}' for name in irregular)} is not a regular file. Only regular files are published.")
 
     published_versions = {e["id"]: e["manifest"]["version"] for e in old["extensions"]}
     entries, files = [], {}

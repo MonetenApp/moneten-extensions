@@ -12,7 +12,8 @@ Every pull request runs the workflow `check`. Its job `checks` fails on:
 - a license outside the allowlist, or a `LICENSE` file that differs from the SPDX text of the license in the manifest in more than its names and years;
 - obfuscated code: bytecode, a line over 500 characters, or a function whose strings hold more than 200 escaped bytes, more than 300 characters of hex or base64, more than 64 bytes passed as numbers to calls such as `string.char`, or text that looks encrypted;
 - an IBAN or an email address in the recording that is not sample data;
-- a manifest that does not match `schema/manifest.schema.json`.
+- a manifest that does not match `schema/manifest.schema.json`;
+- a symbolic link, a hard link, a FIFO, or a device anywhere in a package, and a symbolic link or a submodule anywhere in the repository. The checks read nothing of such a package, and the signing run refuses to publish.
 
 A maintainer then reads the change. One maintainer approves each new package and each update. `CODEOWNERS` makes that approval a requirement for every file in the repository, the tools and workflows included.
 

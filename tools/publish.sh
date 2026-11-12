@@ -13,6 +13,13 @@ for public in keys/current.pub keys/next.pub; do
 	fi
 done
 
+links="$(git ls-files -s | awk '$1 == "120000" || $1 == "160000" { sub(/^[^\t]*\t/, ""); print }')"
+if [[ -n "$links" ]]; then
+	echo "The repository holds symbolic links or submodules, which could publish files from outside it. Nothing was published:" >&2
+	echo "$links" >&2
+	exit 1
+fi
+
 git fetch -q origin main
 if [[ "$(git rev-parse HEAD)" != "$(git rev-parse FETCH_HEAD)" ]]; then
 	echo "HEAD $(git rev-parse --short HEAD) is not the newest main $(git rev-parse --short FETCH_HEAD). An older commit would publish older packages under a new index version, so only the newest main is signed." >&2

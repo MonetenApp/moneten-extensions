@@ -13,6 +13,7 @@ import json
 import math
 import os
 import re
+import stat
 import subprocess
 import sys
 from collections import Counter
@@ -73,6 +74,34 @@ class Package:
 
     def rel(self, name: str) -> str:
         return f"extensions/{self.id}/{name}"
+
+
+NOT_REGULAR = "is not a regular file. A package holds only regular files and folders, so nothing outside it can be read or published through it."
+
+
+def irregular_files(folder: Path) -> list[str]:
+    """Lists, relative to folder, every entry that is not a folder or a regular file with one link: symbolic links,
+    hard links, FIFOs, and devices. "." stands for folder itself. Nothing in the folder is read before this."""
+    if not stat.S_ISDIR(folder.lstat().st_mode):
+        return ["."]
+    found = []
+    for parent, dirs, files in os.walk(folder):
+        for name in dirs + files:
+            info = os.lstat(os.path.join(parent, name))
+            if not (stat.S_ISDIR(info.st_mode) or (stat.S_ISREG(info.st_mode) and info.st_nlink == 1)):
+                found.append(Path(parent, name).relative_to(folder).as_posix())
+    return sorted(found)
+
+
+def tracked_links(root: Path) -> list[Finding]:
+    """Symbolic links and submodules outside extensions/. Package folders get irregular_files instead."""
+    findings = []
+    for row in git(root, "ls-files", "-s", "-z").stdout.split("\0"):
+        meta, _, path = row.partition("\t")
+        mode = meta.split(" ")[0]
+        if mode in ("120000", "160000") and not path.startswith("extensions/"):
+            findings.append(Finding(path, 0, "layout", "is a symbolic link or a submodule. The repository holds only regular files, so no tool reads a file outside it."))
+    return findings
 
 
 def load_schema(name: str) -> dict:
@@ -772,6 +801,8 @@ def check_ext_test(pkg: Package, ext: str) -> list[Finding]:
 
 
 def check_package(folder: Path, luac: str, base: str | None = None, ext: str | None = None) -> list[Finding]:
+    if irregular := irregular_files(folder):
+        return [Finding(f"extensions/{folder.name}/{name}".removesuffix("/."), 0, "layout", NOT_REGULAR) for name in irregular]
     pkg = Package(folder)
     manifest, findings = check_manifest(pkg)
     if manifest is None:
@@ -812,6 +843,7 @@ def main(argv: list[str] | None = None) -> int:
     for folder in folders:
         findings += check_package(folder, luac, args.base, args.ext)
     if not args.packages and not args.changed:
+        findings += tracked_links(args.root)
         findings += check_status(args.root)
         if args.base:
             findings += removed_packages(args.root, args.base)
