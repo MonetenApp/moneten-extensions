@@ -99,3 +99,56 @@ def test_a_tracked_symbolic_link_stops_the_publish(repo, tmp_path):
     assert result.returncode == 1
     assert "schema/leak.json" in result.stderr
     assert published_version(origin) is None
+
+
+def push_to_gh_pages(work, change):
+    git(work, "fetch", "-q", "origin", "gh-pages")
+    git(work, "checkout", "-q", "-B", "pages", "FETCH_HEAD")
+    change(work)
+    git(work, "add", "-A")
+    git(work, "commit", "-q", "-m", "tamper")
+    git(work, "push", "-q", "origin", "pages:gh-pages")
+    git(work, "checkout", "-q", "main")
+    return run(work, "git", "rev-parse", "pages").stdout.strip()
+
+
+def raise_version(work):
+    index = json.loads((work / "index.json").read_text())
+    index["version"] = 99
+    (work / "index.json").write_text(json.dumps(index, indent=2) + "\n")
+
+
+def test_published_index_without_a_valid_signature_is_not_trusted(repo):
+    work, key, origin = repo
+    assert publish(work, key).returncode == 0
+    tampered = push_to_gh_pages(work, raise_version)
+    result = publish(work, key)
+    assert result.returncode == 1
+    assert "index.json on gh-pages has no valid signature" in result.stderr
+    assert run(origin, "git", "rev-parse", "gh-pages").stdout.strip() == tampered
+
+
+def test_symbolic_link_on_gh_pages_is_not_published_again(repo, tmp_path):
+    work, key, origin = repo
+    assert publish(work, key).returncode == 0
+    tampered = push_to_gh_pages(work, lambda site: (site / "env").symlink_to("/proc/self/environ"))
+    result = publish(work, key)
+    assert result.returncode == 1
+    assert "env" in result.stderr
+    assert run(origin, "git", "rev-parse", "gh-pages").stdout.strip() == tampered
+
+
+def test_key_rotation_publishes_at_every_step(repo, tmp_path):
+    work, current, origin = repo
+    following = tmp_path / "next.pem"
+    assert publish(work, current).returncode == 0
+    assert publish(work, following).returncode == 0
+    newest = tmp_path / "newest.pem"
+    run(tmp_path, "openssl", "genpkey", "-algorithm", "ed25519", "-out", str(newest))
+    (work / "keys" / "next.pub").replace(work / "keys" / "current.pub")
+    run(tmp_path, "openssl", "pkey", "-in", str(newest), "-pubout", "-out", str(work / "keys" / "next.pub"))
+    git(work, "commit", "-q", "-am", "rotate the keys")
+    git(work, "push", "-q", "origin", "main")
+    result = publish(work, following)
+    assert result.returncode == 0, result.stderr
+    assert published_version(origin) == 3
