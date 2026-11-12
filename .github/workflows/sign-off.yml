@@ -1,0 +1,63 @@
+name: sign-off
+
+# pull_request_target runs this file and the tools as the base branch has them, so a pull request
+# cannot change the check that judges it. The pull request is checked out only as data. Nothing
+# from it runs: luac only parses its Lua files.
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions: {}
+
+concurrency:
+  group: sign-off-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  sign-off:
+    name: maintainer sign-off
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+      issues: read
+      pull-requests: read
+    steps:
+      - name: Check out the tools of the base branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: trusted
+          persist-credentials: false
+      - name: Check out the pull request as data
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: pull-request
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: trusted/.cache/lua-*.tar.gz
+          key: lua-${{ runner.os }}-${{ hashFiles('trusted/tools/setup.sh') }}
+      - run: trusted/tools/setup.sh
+      - name: Keep only the labels set after the newest push
+        id: labels
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: echo "fresh=$(python3 trusted/tools/fresh_labels.py "$REPOSITORY" "$NUMBER" "$HEAD")" >> "$GITHUB_OUTPUT"
+      - name: Require the labels hosts-approved and io-acknowledged where needed
+        env:
+          FRESH_LABELS: ${{ steps.labels.outputs.fresh }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          fork_point="$(git -C pull-request merge-base "$BASE" "$HEAD")"
+          python3 trusted/tools/check_package.py --root pull-request --sign-off --base "$fork_point" --changed --labels "$FRESH_LABELS"
