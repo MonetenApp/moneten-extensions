@@ -33,13 +33,78 @@ def test_ext_test_is_skipped_as_a_job_while_ext_lock_pins_no_commit():
     assert "echo \"::notice" not in job
 
 
+def steps(job):
+    return re.split(r"\n      - ", job)[1:]
+
+
 def test_sign_off_counts_only_labels_set_after_the_newest_push():
-    job = jobs("check.yml")["sign-off"]
-    assert "tools/fresh_labels.py" in job
+    job = jobs("sign-off.yml")["sign-off"]
+    assert "trusted/tools/fresh_labels.py" in job
     assert '--labels "$FRESH_LABELS"' in job
     assert "$LABELS" not in job
 
 
-def test_no_workflow_runs_on_pull_request_target():
+def test_sign_off_runs_the_tools_of_the_base_and_reads_the_pull_request_only_as_data():
+    text = (WORKFLOWS / "sign-off.yml").read_text()
+    assert re.search(r"(?m)^on:\n  pull_request_target:\n    types: \[opened, synchronize, reopened, labeled, unlabeled\]$", text)
+    assert re.search(r"(?m)^permissions: \{\}$", text)
+    assert "secrets." not in text
+    job = jobs("sign-off.yml")["sign-off"]
+    assert re.search(r"(?m)^    name: maintainer sign-off$", job)
+    assert set(re.findall(r"(?m)^      (\w[\w-]*): (\w+)$", job.split("    permissions:\n", 1)[1].split("    steps:", 1)[0])) == {
+        ("contents", "read"), ("actions", "read"), ("issues", "read"), ("pull-requests", "read")}
+    checkouts = [s for s in steps(job) if "actions/checkout@" in s]
+    assert len(checkouts) == 2
+    assert "ref: ${{ github.event.pull_request.base.sha }}" in checkouts[0] and "path: trusted" in checkouts[0]
+    assert "ref: ${{ github.event.pull_request.head.sha }}" in checkouts[1] and "path: pull-request" in checkouts[1]
+    for step in steps(job):
+        for script in re.findall(r"[\w./-]+\.(?:py|sh)\b", step.partition("run:")[2]):
+            assert script.startswith("trusted/tools/"), script
+    assert "--root pull-request" in job
+
+
+def test_only_the_sign_off_runs_on_pull_request_target():
     for path in WORKFLOWS.glob("*.yml"):
-        assert "pull_request_target" not in path.read_text(), path.name
+        if path.name != "sign-off.yml":
+            assert "pull_request_target" not in path.read_text(), path.name
+    assert "sign-off" not in jobs("check.yml")
+
+
+def test_each_signing_job_holds_only_the_permissions_it_uses():
+    text = (WORKFLOWS / "sign.yml").read_text()
+    assert re.search(r"(?m)^permissions: \{\}$", text)
+    found = jobs("sign.yml")
+    granted = {name: set(re.findall(r"(?m)^      ([\w-]+): (\w+)$", job.split("    permissions:\n", 1)[1].split("\n    steps:", 1)[0].split("\n    environment:", 1)[0])) for name, job in found.items()}
+    assert granted == {"check": {("contents", "read")}, "sign": {("contents", "write")}, "deploy": {("pages", "write"), ("id-token", "write")}}
+    assert "tools/check-all.sh" in found["check"]
+    assert "tools/check-all.sh" not in found["sign"]
+    assert re.search(r"(?m)^    needs: check$", found["sign"])
+    assert re.search(r"(?m)^      name: catalog-signing$", found["sign"])
+    token_steps = [s for s in steps(found["sign"]) if "github.token" in s]
+    assert len(token_steps) == 1 and "tools/publish.sh" in token_steps[0]
+
+
+def test_pages_deploys_the_tree_that_publish_sh_pushed():
+    found = jobs("sign.yml")
+    assert re.search(r'tools/publish.sh "\$key" "\$RUNNER_TEMP/pages"', found["sign"])
+    upload = next(s for s in steps(found["sign"]) if "actions/upload-pages-artifact@" in s)
+    assert "path: ${{ runner.temp }}/pages" in upload
+    assert re.search(r"(?m)^    needs: sign$", found["deploy"])
+    assert re.search(r"(?m)^      name: github-pages$", found["deploy"])
+    assert "actions/deploy-pages@" in found["deploy"]
+
+
+def test_actions_are_pinned_to_a_commit():
+    for path in WORKFLOWS.glob("*.yml"):
+        for action in re.findall(r"uses: (\S+)", path.read_text()):
+            assert re.fullmatch(r"[\w-]+/[\w-]+@[0-9a-f]{40}", action), (path.name, action)
+
+
+def test_ext_test_builds_only_main_of_the_app_repository():
+    found = jobs("check.yml")
+    assert "repository=" not in (WORKFLOWS.parent.parent / "tools" / "ext.lock").read_text()
+    assert "ext-repository" not in found["checks"]
+    assert "^[0-9a-f]{40}$" in found["checks"]
+    app = next(s for s in steps(found["ext-test"]) if "path: .cache/moneten" in s)
+    assert "repository: MonetenApp/Moneten\n" in app
+    assert "merge-base --is-ancestor" in found["ext-test"]

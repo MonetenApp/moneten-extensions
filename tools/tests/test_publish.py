@@ -152,3 +152,13 @@ def test_key_rotation_publishes_at_every_step(repo, tmp_path):
     result = publish(work, following)
     assert result.returncode == 0, result.stderr
     assert published_version(origin) == 3
+
+
+def test_the_published_tree_is_copied_for_the_pages_deployment(repo, tmp_path):
+    work, key, origin = repo
+    copy = tmp_path / "pages"
+    result = run(work, "bash", "tools/publish.sh", str(key), str(copy), check=False)
+    assert result.returncode == 0, result.stderr
+    published = run(origin, "git", "ls-tree", "-r", "--name-only", "gh-pages").stdout.split()
+    assert sorted(p.relative_to(copy).as_posix() for p in copy.rglob("*") if p.is_file()) == sorted(published)
+    assert (copy / "index.json").read_text() == run(origin, "git", "show", "gh-pages:index.json").stdout
