@@ -143,7 +143,7 @@ def test_global_with_a_long_name_is_a_fixed_global_read(catalog, luac):
     ('local s = "https://tracker.example/p"\nlocal t = "^" .. s', "tracker.example is not in the hosts of manifest.json."),
     ('local u = "https://tracker.example/p$"', "tracker.example is not in the hosts of manifest.json."),
     ('local u = "https://tracker.example/a.*"', "tracker.example is not in the hosts of manifest.json."),
-    ('local u = "https://tracker.example/?s?:"', "tracker.example is not in the hosts of manifest.json."),
+    ('local u = "https://tracker.example/?s?:"', "tracker.example is not in the hosts of manifest.json."),    ('local u = string.char(104,116,116,112,115,58,47) .. string.char(47,116,114,97,99,107,101) .. string.char(114,46,101,120,97,109,112) .. string.char(108,101)', "tracker.example is not in the hosts of manifest.json."),
 ])
 def test_host_hidden_from_a_plain_literal_fails(catalog, luac, code, message):
     append_lua(catalog, code)
