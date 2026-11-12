@@ -430,3 +430,10 @@ def test_a_symbolic_link_outside_the_packages_fails(catalog, tmp_path):
     result = run_cli(catalog)
     assert result.returncode == 1
     assert result.stdout.startswith("schema/leak.json:0: layout: ")
+
+
+def test_sign_off_fails_when_the_manifest_cannot_be_inspected(catalog):
+    edit_manifest(catalog, hosts=["tracker.example", "www.bank.example"], version="1.1", homepage="https://tracker.example")
+    result = run_cli(catalog, "--sign-off", "--base", "HEAD", "--changed", "--labels", "hosts-approved,io-acknowledged")
+    assert result.returncode == 1
+    assert result.stdout.startswith(f"{MANIFEST}:1: schema: ")

@@ -162,3 +162,12 @@ def test_the_published_tree_is_copied_for_the_pages_deployment(repo, tmp_path):
     published = run(origin, "git", "ls-tree", "-r", "--name-only", "gh-pages").stdout.split()
     assert sorted(p.relative_to(copy).as_posix() for p in copy.rglob("*") if p.is_file()) == sorted(published)
     assert (copy / "index.json").read_text() == run(origin, "git", "show", "gh-pages:index.json").stdout
+
+
+def test_a_file_pushed_to_gh_pages_by_hand_is_gone_after_the_next_publish(repo):
+    work, key, origin = repo
+    assert publish(work, key).returncode == 0
+    push_to_gh_pages(work, lambda site: (site / "pwn.html").write_text("<script>steal()</script>\n"))
+    assert publish(work, key).returncode == 0
+    assert "pwn.html" not in run(origin, "git", "ls-tree", "-r", "--name-only", "gh-pages").stdout.split()
+    assert published_version(origin) == 2

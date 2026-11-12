@@ -46,13 +46,14 @@ def test_sign_off_counts_only_labels_set_after_the_newest_push():
 
 def test_sign_off_runs_the_tools_of_the_base_and_reads_the_pull_request_only_as_data():
     text = (WORKFLOWS / "sign-off.yml").read_text()
-    assert re.search(r"(?m)^on:\n  pull_request_target:\n    types: \[opened, synchronize, reopened, labeled, unlabeled\]$", text)
+    assert re.search(r"(?m)^on:\n  pull_request_target:\n    branches: \[main\]\n    types: \[opened, synchronize, reopened, labeled, unlabeled\]$", text)
     assert re.search(r"(?m)^permissions: \{\}$", text)
     assert "secrets." not in text
     job = jobs("sign-off.yml")["sign-off"]
     assert re.search(r"(?m)^    name: maintainer sign-off$", job)
     assert set(re.findall(r"(?m)^      (\w[\w-]*): (\w+)$", job.split("    permissions:\n", 1)[1].split("    steps:", 1)[0])) == {
-        ("contents", "read"), ("actions", "read"), ("issues", "read"), ("pull-requests", "read")}
+        ("contents", "read"), ("pull-requests", "read")}
+    assert "actions/cache@" not in job
     checkouts = [s for s in steps(job) if "actions/checkout@" in s]
     assert len(checkouts) == 2
     assert "ref: ${{ github.event.pull_request.base.sha }}" in checkouts[0] and "path: trusted" in checkouts[0]
@@ -75,21 +76,26 @@ def test_each_signing_job_holds_only_the_permissions_it_uses():
     assert re.search(r"(?m)^permissions: \{\}$", text)
     found = jobs("sign.yml")
     granted = {name: set(re.findall(r"(?m)^      ([\w-]+): (\w+)$", job.split("    permissions:\n", 1)[1].split("\n    steps:", 1)[0].split("\n    environment:", 1)[0])) for name, job in found.items()}
-    assert granted == {"check": {("contents", "read")}, "sign": {("contents", "write")}, "deploy": {("pages", "write"), ("id-token", "write")}}
+    assert granted == {"check": {("contents", "read")}, "sign": {("contents", "read")}, "push": {("contents", "write")}, "deploy": {("pages", "write"), ("id-token", "write")}}
     assert "tools/check-all.sh" in found["check"]
-    assert "tools/check-all.sh" not in found["sign"]
     assert re.search(r"(?m)^    needs: check$", found["sign"])
     assert re.search(r"(?m)^      name: catalog-signing$", found["sign"])
-    token_steps = [s for s in steps(found["sign"]) if "github.token" in s]
-    assert len(token_steps) == 1 and "tools/publish.sh" in token_steps[0]
+    assert "github.token" not in found["sign"]
+    assert re.search(r"(?m)^    needs: sign$", found["push"])
+    assert [s.split("\n")[0] for s in steps(found["push"])] == [
+        "uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1",
+        "uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2",
+        "name: Push the signed site to gh-pages",
+    ]
+    assert "tools/push-site.sh" in steps(found["push"])[2]
 
 
-def test_pages_deploys_the_tree_that_publish_sh_pushed():
+def test_pages_deploys_the_tree_that_was_pushed():
     found = jobs("sign.yml")
-    assert re.search(r'tools/publish.sh "\$key" "\$RUNNER_TEMP/pages"', found["sign"])
+    assert re.search(r'tools/publish.sh "\$key" "\$RUNNER_TEMP/signed"', found["sign"])
     upload = next(s for s in steps(found["sign"]) if "actions/upload-pages-artifact@" in s)
-    assert "path: ${{ runner.temp }}/pages" in upload
-    assert re.search(r"(?m)^    needs: sign$", found["deploy"])
+    assert "path: ${{ runner.temp }}/signed/site" in upload
+    assert re.search(r"(?m)^    needs: push$", found["deploy"])
     assert re.search(r"(?m)^      name: github-pages$", found["deploy"])
     assert "actions/deploy-pages@" in found["deploy"]
 
