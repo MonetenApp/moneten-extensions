@@ -37,7 +37,7 @@ def steps(job):
     return re.split(r"\n      - ", job)[1:]
 
 
-def test_sign_off_counts_only_labels_set_after_the_newest_push():
+def test_sign_off_counts_only_labels_that_a_maintainer_bound_to_the_head():
     job = jobs("sign-off.yml")["sign-off"]
     assert "trusted/tools/fresh_labels.py" in job
     assert '--labels "$FRESH_LABELS"' in job
@@ -86,6 +86,7 @@ def test_each_signing_job_holds_only_the_permissions_it_uses():
         "uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1",
         "uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2",
         "name: Push the signed site to gh-pages",
+        "uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0",
     ]
     assert "tools/push-site.sh" in steps(found["push"])[2]
 
@@ -93,7 +94,8 @@ def test_each_signing_job_holds_only_the_permissions_it_uses():
 def test_pages_deploys_the_tree_that_was_pushed():
     found = jobs("sign.yml")
     assert re.search(r'tools/publish.sh "\$key" "\$RUNNER_TEMP/signed"', found["sign"])
-    upload = next(s for s in steps(found["sign"]) if "actions/upload-pages-artifact@" in s)
+    assert "actions/upload-pages-artifact@" not in found["sign"]
+    upload = next(s for s in steps(found["push"]) if "actions/upload-pages-artifact@" in s)
     assert "path: ${{ runner.temp }}/signed/site" in upload
     assert re.search(r"(?m)^    needs: push$", found["deploy"])
     assert re.search(r"(?m)^      name: github-pages$", found["deploy"])

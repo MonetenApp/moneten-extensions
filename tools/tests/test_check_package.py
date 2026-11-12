@@ -437,3 +437,12 @@ def test_sign_off_fails_when_the_manifest_cannot_be_inspected(catalog):
     result = run_cli(catalog, "--sign-off", "--base", "HEAD", "--changed", "--labels", "hosts-approved,io-acknowledged")
     assert result.returncode == 1
     assert result.stdout.startswith(f"{MANIFEST}:1: schema: ")
+
+
+@pytest.mark.parametrize("unreadable", [b"\x1bLua\x54\x00", b'local f = io.open("x")\n-- \xff\n'])
+def test_sign_off_fails_when_a_script_cannot_be_read(catalog, unreadable):
+    (package(catalog) / "Example.lua").write_bytes(unreadable)
+    edit_manifest(catalog, version="1.1")
+    result = run_cli(catalog, "--sign-off", "--base", "HEAD", "--changed", "--labels", "hosts-approved")
+    assert result.returncode == 1
+    assert result.stdout.startswith(f"{LUA}:")

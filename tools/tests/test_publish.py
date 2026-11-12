@@ -205,3 +205,52 @@ def test_a_changed_file_under_a_published_version_is_refused_from_a_clean_site(r
     assert result.returncode == 1
     assert "example/1.0/Example.lua is already published with other content" in result.stderr
     assert published_version(origin) == 1
+
+
+def drop_signature(site):
+    (site / "index.json.sig").unlink()
+
+
+def change_the_index(site):
+    index = json.loads((site / "index.json").read_text())
+    index["published"] = "2030-01-01T00:00:00Z"
+    (site / "index.json").write_text(json.dumps(index, indent=2) + "\n")
+
+
+def add_a_file(site):
+    (site / "pwn.html").write_text("<script>steal()</script>\n")
+
+
+def change_a_package_file(site):
+    script = site / "example" / "1.0" / "Example.lua"
+    script.write_text(script.read_text() + "os.execute('x')\n")
+
+
+def drop_a_package_file(site):
+    (site / "example" / "1.0" / "README.md").unlink()
+
+
+@pytest.mark.parametrize("tamper", [drop_signature, change_the_index, add_a_file, change_a_package_file, drop_a_package_file])
+def test_the_push_refuses_a_site_that_does_not_match_its_signed_index(repo, tamper):
+    work, key, origin = repo
+    assert publish(work, key).returncode == 0
+    before = run(origin, "git", "rev-parse", "gh-pages").stdout.strip()
+    out, signed = sign(work, key)
+    assert signed.returncode == 0, signed.stderr
+    tamper(out / "site")
+    pushed = run(work, "bash", "tools/push-site.sh", str(out), check=False)
+    assert pushed.returncode == 1
+    assert run(origin, "git", "rev-parse", "gh-pages").stdout.strip() == before
+
+
+def test_the_push_refuses_an_older_signed_site(repo):
+    work, key, origin = repo
+    old, signed = sign(work, key)
+    assert signed.returncode == 0
+    assert publish(work, key).returncode == 0
+    assert publish(work, key).returncode == 0
+    newest = run(origin, "git", "rev-parse", "gh-pages").stdout.strip()
+    (old / "parent").write_text(newest + "\n")
+    pushed = run(work, "bash", "tools/push-site.sh", str(old), check=False)
+    assert pushed.returncode == 1
+    assert published_version(origin) == 2

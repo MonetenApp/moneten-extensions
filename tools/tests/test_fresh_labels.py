@@ -15,15 +15,13 @@ def review(user, state, commit, at):
 
 
 class FakeGitHub:
-    """Answers the REST calls about pull request 7, whose head is X, with the filters the API applies."""
+    """Answers the REST calls about pull request 7, whose head is X."""
 
-    def __init__(self, reviews, author="contributor", head_repository="contributor/moneten-extensions", runs=()):
-        self.reviews, self.author, self.head_repository, self.runs = reviews, author, head_repository, list(runs)
+    def __init__(self, reviews, author="contributor", head_repository="contributor/moneten-extensions"):
+        self.reviews, self.author, self.head_repository = reviews, author, head_repository
 
     def __call__(self, request, timeout):
-        url = urllib.parse.urlsplit(request.full_url)
-        query = dict(urllib.parse.parse_qsl(url.query))
-        path = url.path.removeprefix(f"/repos/{REPOSITORY}")
+        path = urllib.parse.urlsplit(request.full_url).path.removeprefix(f"/repos/{REPOSITORY}")
         if path == "/pulls/7":
             body = {
                 "number": 7, "user": {"login": self.author}, "labels": [{"name": "hosts-approved"}, {"name": "help wanted"}],
@@ -33,11 +31,6 @@ class FakeGitHub:
             body = self.reviews
         elif path.startswith("/collaborators/") and path.endswith("/permission"):
             body = {"permission": PERMISSIONS.get(path.split("/")[2], "none")}
-        elif path == "/actions/runs":
-            filters = {"head_sha": "head_sha", "event": "event", "branch": "head_branch"}
-            body = {"workflow_runs": [r for r in self.runs if all(r[field] == query[param] for param, field in filters.items() if param in query)]}
-        elif path == "/issues/7/events":
-            body = [{"event": "labeled", "label": {"name": "hosts-approved"}, "created_at": "2026-11-12T10:15:00Z"}]
         else:
             raise AssertionError(f"unexpected request {request.full_url}")
         return FakeResponse(body)
@@ -58,9 +51,7 @@ def signed_off(monkeypatch, capsys, github):
 
 def test_an_approval_of_another_commit_does_not_carry_the_label_to_the_head(monkeypatch, capsys):
     # X adds a host. A is pushed with [skip ci], approved and labelled, then X is force-pushed back.
-    run = {"head_sha": X, "created_at": "2026-11-12T10:00:00Z", "event": "pull_request", "head_branch": "feature",
-           "head_repository": {"full_name": "contributor/moneten-extensions"}}
-    github = FakeGitHub([review("maintainer", "APPROVED", A, "2026-11-12T10:16:00Z")], runs=[run])
+    github = FakeGitHub([review("maintainer", "APPROVED", A, "2026-11-12T10:16:00Z")])
     code, out = signed_off(monkeypatch, capsys, github)
     assert (code, out.out) == (0, "\n")
     assert "hosts-approved" in out.err
@@ -88,7 +79,15 @@ def test_an_approval_that_the_maintainer_took_back_does_not_count(monkeypatch, c
     assert (code, out.out) == (0, "\n")
 
 
-def test_a_maintainer_who_wrote_the_head_in_this_repository_needs_no_review(monkeypatch, capsys):
-    github = FakeGitHub([], author="maintainer", head_repository=REPOSITORY)
+def test_a_maintainer_author_binds_the_label_to_the_head_with_a_comment_review(monkeypatch, capsys):
+    github = FakeGitHub([review("maintainer", "COMMENTED", X, "2026-11-12T10:16:00Z")], author="maintainer", head_repository=REPOSITORY)
     code, out = signed_off(monkeypatch, capsys, github)
     assert (code, out.out) == (0, "hosts-approved\n")
+
+
+def test_a_label_on_a_maintainer_pull_request_does_not_survive_a_push(monkeypatch, capsys):
+    # The author labels A, reviews A, and pushes X with a new host.
+    github = FakeGitHub([review("maintainer", "COMMENTED", A, "2026-11-12T10:16:00Z")], author="maintainer", head_repository=REPOSITORY)
+    code, out = signed_off(monkeypatch, capsys, github)
+    assert (code, out.out) == (0, "\n")
+    assert "hosts-approved" in out.err
