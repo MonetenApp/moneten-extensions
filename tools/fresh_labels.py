@@ -4,10 +4,11 @@
 Usage:
   tools/fresh_labels.py REPOSITORY PULL_REQUEST HEAD_SHA
 
-Reads GITHUB_TOKEN. A label counts only while a maintainer's approving review names HEAD_SHA,
-or when a maintainer wrote the pull request on a branch of this repository. A review names the
-commit it read, so a later push, a force-push back to an older commit, or a commit that started
-no workflow run cannot carry a label to code that no maintainer approved.
+Reads GITHUB_TOKEN. A label counts only while a maintainer's approving review names HEAD_SHA.
+GitHub does not let authors approve their own pull requests, so on a maintainer's own pull
+request a review of the author that names HEAD_SHA, such as a comment, counts instead. A review
+names the commit it read, so a later push, a force-push back to an older commit, or a commit
+that started no workflow run cannot carry a label to code that no maintainer read.
 """
 from __future__ import annotations
 
@@ -61,15 +62,16 @@ def main(argv: list[str]) -> int:
     if not labels:
         print("")
         return 0
-    own_branch = (pull["head"]["repo"] or {}).get("full_name") == repository and pull["head"]["sha"] == head
-    if own_branch and is_maintainer(pull["user"]["login"]):
-        print(",".join(labels))
-        return 0
-    if any(is_maintainer(login) for login in sorted(approvers_of(get_all(f"{api}/pulls/{number}/reviews?per_page=100", token), head))):
+    reviews = get_all(f"{api}/pulls/{number}/reviews?per_page=100", token)
+    author = pull["user"]["login"]
+    readers = approvers_of(reviews, head)
+    if any(r["user"] and r["user"]["login"] == author and r["commit_id"] == head and r["state"] in ("COMMENTED", "APPROVED") for r in reviews):
+        readers.add(author)
+    if any(is_maintainer(login) for login in sorted(readers)):
         print(",".join(labels))
         return 0
     for name in labels:
-        print(f"::warning title={name} waits for an approval::No maintainer approved {head[:7]}, so the label {name} does not count yet. Approve the pull request, then set the label again or re-run this job.", file=sys.stderr)
+        print(f"::warning title={name} waits for an approval::No maintainer approved {head[:7]}, so the label {name} does not count yet. Approve the pull request, or as its author leave a review with Comment, then set the label again or re-run this job.", file=sys.stderr)
     print("")
     return 0
 
