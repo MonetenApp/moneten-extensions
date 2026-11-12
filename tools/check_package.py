@@ -500,9 +500,10 @@ def main(argv: list[str] | None = None) -> int:
     for finding in shown:
         print(finding.render(labels))
         if github:
-            level = "error" if finding in failing else "warning"
+            level = "error" if finding in failing else "notice" if finding.label in labels else "warning"
             print(f"::{level} file={finding.path},line={max(finding.line, 1)},title={finding.rule}::{finding.render(labels)}")
 
+    sys.stdout.flush()
     skipped = "" if args.ext else " ext test skipped, no ext binary."
     print(f"Checked {len(folders)} package(s): {len(failing)} failing, {len(shown) - len(failing)} other.{skipped}", file=sys.stderr)
     return 1 if failing else 0

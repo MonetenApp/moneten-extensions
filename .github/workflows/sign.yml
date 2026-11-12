@@ -1,0 +1,52 @@
+name: sign
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - extensions/**
+      - status.json
+      - keys/**
+      - schema/**
+      - tools/build_index.py
+      - tools/publish.sh
+      - .github/workflows/sign.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: catalog-signing
+  cancel-in-progress: false
+
+jobs:
+  sign:
+    name: sign and publish the index
+    if: github.repository == 'MonetenApp/moneten-extensions' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: catalog-signing
+      url: https://extensions.monetenapp.com/index.json
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - run: tools/setup.sh
+      - run: tools/check-all.sh
+
+      - name: Build, sign, verify, and publish the index
+        env:
+          INDEX_SIGNING_KEY: ${{ secrets.INDEX_SIGNING_KEY }}
+        run: |
+          if [[ -z "$INDEX_SIGNING_KEY" ]]; then
+            echo "::error::The environment catalog-signing has no secret INDEX_SIGNING_KEY. See docs/set-up-signing.md."
+            exit 1
+          fi
+          key="$RUNNER_TEMP/index-signing-key.pem"
+          trap 'rm -f "$key"' EXIT
+          (umask 077 && printf '%s\n' "$INDEX_SIGNING_KEY" > "$key")
+          tools/publish.sh "$key"
