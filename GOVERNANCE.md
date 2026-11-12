@@ -26,7 +26,7 @@ Two findings do not fail `checks`, because only a person can judge them. The job
 
 The job also fails, whatever the labels, when a schema, layout, syntax, or obfuscation finding keeps the check from reading the hosts and the scripts of a package.
 
-Only maintainers can set labels. A label counts only while a maintainer's approving review names the newest commit of the pull request, because a review records the commit it read. So approve the pull request first, then set the label, which runs the job again. A push after the sign-off needs a new approval: approve again, then remove the label and set it again, or re-run the job. GitHub does not let authors approve their own pull requests. On a maintainer's own pull request, the author leaves a review with **Comment** on the newest commit instead.
+Only maintainers can set labels. A label counts only while a maintainer's approving review names the newest commit of the pull request, because a review records the commit it read. So approve the pull request first, then set the label, which runs the job again. A push after the sign-off needs a new approval: approve again, then remove the label and set it again, or re-run the job. GitHub does not let authors approve their own pull requests. On a maintainer's own pull request, the author instead leaves a review with **Comment** on the newest commit, and its text holds the word `sign-off`, for example `sign-off: I read the new hosts.` A reply to a line comment does not count, because it has no such text.
 
 Some addresses only produce a warning: a Lua pattern such as `"^https://"`, a string that goes into `MM.urlencode`, and an XML namespace or the OAuth redirect address. The warning gives the reason. The maintainer reads these lines too.
 

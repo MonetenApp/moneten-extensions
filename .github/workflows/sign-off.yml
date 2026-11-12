@@ -41,7 +41,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: trusted/tools/setup.sh
-      - name: Keep only the labels set after the newest push
+      - name: Keep only the labels that a maintainer's review binds to the head
         id: labels
         env:
           GITHUB_TOKEN: ${{ github.token }}
