@@ -24,7 +24,7 @@ Two findings do not fail `checks`, because only a person can judge them. The job
 | The pull request adds a host to a manifest, or adds a new package. | `hosts-approved` | The host belongs to the service, and the script sends login data only there. |
 | A script reads `io`. | `io-acknowledged` | The script works when `io.open` is `nil`. Moneten gives scripts an `io` table without functions. |
 
-Only maintainers can set labels. Adding or removing a label runs every job again. A label counts only when it was set after the newest push to the pull request, also when a force-push brings back a commit that was the head before, so a push after the sign-off needs a new sign-off: remove the label and set it again.
+Only maintainers can set labels. A label counts only while a maintainer's approving review names the newest commit of the pull request, because a review records the commit it read. So approve the pull request first, then set the label, which runs the job again. A push after the sign-off needs a new approval: approve again, then remove the label and set it again, or re-run the job. On a pull request that a maintainer opened from a branch of this repository, the label counts without a review, because GitHub does not let authors approve their own pull requests.
 
 Some addresses only produce a warning: a Lua pattern such as `"^https://"`, a string that goes into `MM.urlencode`, and an XML namespace or the OAuth redirect address. The warning gives the reason. The maintainer reads these lines too.
 
