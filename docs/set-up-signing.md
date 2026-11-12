@@ -46,7 +46,7 @@ Each push to `main` that changes a package, `status.json`, `keys/`, `schema/`, o
 1. Click **Actions**, then the waiting run of **sign**.
 2. Click **Review deployments**, select **catalog-signing**, and click **Approve and deploy**.
 
-The run builds a new site from an empty folder, signs `index.json`, and checks the signature against `keys/`. The job `push the signed site to gh-pages` is the only job with a write token. It does not run any script before `tools/push-site.sh`, which pushes exactly that site as one commit, so a file that someone added to `gh-pages` by hand disappears. The job `deploy to GitHub Pages` then publishes the same tree. If the secret matches neither `keys/current.pub` nor `keys/next.pub`, or if the published index has no valid signature by one of them, the run fails and publishes nothing.
+The run builds a new site from an empty folder, signs `index.json`, and checks the signature against `keys/`. The job `push the signed site to gh-pages` is the only job with a write token. It does not run any script before `tools/push-site.sh`. That script checks the signature against `keys/`, checks that the version is higher than the one on `gh-pages`, and checks that the site holds exactly the files of the index with their SHA-256. It then pushes that site as one commit, so a file that someone added to `gh-pages` by hand disappears. The job uploads the checked tree, and the job `deploy to GitHub Pages` publishes it. If the secret matches neither `keys/current.pub` nor `keys/next.pub`, or if the published index has no valid signature by one of them, the run fails and publishes nothing.
 
 `curl -s https://extensions.monetenapp.com/index.json` then shows the signed index.
 

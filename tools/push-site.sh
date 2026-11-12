@@ -1,18 +1,25 @@
 #!/usr/bin/env bash
-# Pushes OUT_DIR/site, which tools/publish.sh signed, to gh-pages of origin as one commit on top
-# of the commit in OUT_DIR/parent. The commit holds exactly the files of the site.
+# Checks OUT_DIR/site, which tools/publish.sh signed, with tools/verify_site.py, and pushes it to
+# gh-pages of origin as one commit on top of the commit in OUT_DIR/parent. The commit holds
+# exactly the files of the site.
 # Usage: tools/push-site.sh OUT_DIR
 set -euo pipefail
 out="$(cd "$1" && pwd)"
 cd "$(dirname "$0")/.."
 
 parent="$(cat "$out/parent")"
+floor=0
 if [[ -n "$parent" ]]; then
 	git fetch -q --depth 1 origin gh-pages
 	if [[ "$(git rev-parse FETCH_HEAD)" != "$parent" ]]; then
 		echo "gh-pages moved after the signing run read it. Nothing was pushed. Run the workflow sign again." >&2
 		exit 1
 	fi
+	floor="$(git show "$parent:index.json" | python3 -c 'import json, sys; v = json.load(sys.stdin)["version"]; assert type(v) is int; print(v)')"
+fi
+if ! python3 tools/verify_site.py "$out/site" --floor "$floor"; then
+	echo "The site does not match its signed index. Nothing was pushed." >&2
+	exit 1
 fi
 
 git_dir="$(git rev-parse --absolute-git-dir)"

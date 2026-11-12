@@ -240,6 +240,7 @@ def test_the_push_refuses_a_site_that_does_not_match_its_signed_index(repo, tamp
     tamper(out / "site")
     pushed = run(work, "bash", "tools/push-site.sh", str(out), check=False)
     assert pushed.returncode == 1
+    assert "The site does not match its signed index" in pushed.stderr
     assert run(origin, "git", "rev-parse", "gh-pages").stdout.strip() == before
 
 
@@ -253,4 +254,5 @@ def test_the_push_refuses_an_older_signed_site(repo):
     (old / "parent").write_text(newest + "\n")
     pushed = run(work, "bash", "tools/push-site.sh", str(old), check=False)
     assert pushed.returncode == 1
+    assert "but version 2 is already published" in pushed.stderr
     assert published_version(origin) == 2

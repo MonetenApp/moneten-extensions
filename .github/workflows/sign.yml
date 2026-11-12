@@ -12,6 +12,7 @@ on:
       - tools/check_package.py
       - tools/publish.sh
       - tools/push-site.sh
+      - tools/verify_site.py
       - .github/workflows/sign.yml
   # The key rotation in docs/set-up-signing.md signs once with the next key before keys/ changes.
   workflow_dispatch:
@@ -76,10 +77,6 @@ jobs:
           path: ${{ runner.temp }}/signed
           include-hidden-files: true
           retention-days: 1
-      # A push made with the workflow token starts no Pages build, so the job deploy publishes this tree.
-      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
-        with:
-          path: ${{ runner.temp }}/signed/site
 
   push:
     name: push the signed site to gh-pages
@@ -104,6 +101,11 @@ jobs:
           GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$PUSH_TOKEN" | base64 -w0)"
           export GIT_CONFIG_VALUE_0
           tools/push-site.sh "$RUNNER_TEMP/signed"
+      # A push made with the workflow token starts no Pages build, so the job deploy publishes the tree
+      # that push-site.sh checked and pushed.
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: ${{ runner.temp }}/signed/site
 
   deploy:
     name: deploy to GitHub Pages
