@@ -120,18 +120,16 @@ def test_lower_version_than_the_published_one_is_refused(catalog, tmp_path):
     assert json.loads((out / "index.json").read_text())["version"] == 1
 
 
-def test_file_name_with_spaces_is_published_under_that_name(catalog, tmp_path):
-    folder = catalog / "extensions" / "example"
-    (folder / "Example.lua").rename(folder / "Permanent TSB Business.lua")
-    manifest = json.loads((folder / "manifest.json").read_text())
-    manifest["files"] = ["Permanent TSB Business.lua"]
-    (folder / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+def test_version_with_a_final_newline_is_refused(catalog, tmp_path):
+    path = catalog / "extensions" / "example" / "manifest.json"
+    manifest = json.loads(path.read_text())
+    manifest["version"] = "1.0\n"
+    path.write_text(json.dumps(manifest, indent=2) + "\n")
     out = tmp_path / "site"
-    assert build(catalog, out).returncode == 0
-    entry = json.loads((out / "index.json").read_text())["extensions"][0]
-    script = (folder / "Permanent TSB Business.lua").read_bytes()
-    assert {"path": "Permanent TSB Business.lua", "size": len(script), "sha256": hashlib.sha256(script).hexdigest()} in entry["files"]
-    assert (out / "example" / "1.0" / "Permanent TSB Business.lua").read_bytes() == script
+    result = build(catalog, out)
+    assert result.returncode == 1
+    assert "extensions/0/manifest/version" in result.stderr
+    assert not (out / "index.json").exists()
 
 
 def test_a_symbolic_link_in_a_package_is_refused_and_nothing_is_written(catalog, tmp_path):

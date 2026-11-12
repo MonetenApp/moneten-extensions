@@ -199,12 +199,6 @@ def test_proprietary_text_that_quotes_a_license_phrase_fails(catalog, luac):
     assert summary(check(package(catalog), luac)) == [("extensions/example/LICENSE", 1, "license")]
 
 
-def test_file_name_with_spaces_passes(catalog, luac):
-    (package(catalog) / "Example.lua").rename(package(catalog) / "Permanent TSB Business.lua")
-    edit_manifest(catalog, files=["Permanent TSB Business.lua"])
-    assert check(package(catalog), luac) == []
-
-
 def test_long_line_fails(catalog, luac):
     code = "local t = {" + ", ".join(str(n) for n in range(200)) + "}"
     line = append_lua(catalog, code)
@@ -268,6 +262,16 @@ def test_email_outside_example_domains_fails(catalog, luac):
     expected = package(catalog) / "recording" / "expected.json"
     expected.write_text(expected.read_text().replace('"owner": "Erika Mustermann"', '"owner": "erika@mail.de"'))
     assert summary(check(package(catalog), luac)) == [("extensions/example/recording/expected.json", 5, "personal-data")]
+
+
+MANIFEST_CASES = json.loads((TOOLS.parent / "schema" / "fixtures" / "manifest-cases.json").read_text())["cases"]
+
+
+@pytest.mark.parametrize("case", MANIFEST_CASES, ids=[case["name"] for case in MANIFEST_CASES])
+def test_the_schema_judges_each_shared_manifest_case_as_the_app_does(catalog, luac, case):
+    edit_manifest(catalog, **case["change"])
+    schema_findings = [f for f in check(package(catalog), luac) if f.rule == "schema"]
+    assert (schema_findings == []) == case["valid"], schema_findings
 
 
 def test_wildcard_host_fails_the_schema(catalog, luac):
