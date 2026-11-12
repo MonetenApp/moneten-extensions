@@ -17,14 +17,14 @@ Every pull request runs the workflow `check`. Its job `checks` fails on:
 
 A maintainer then reads the change. One maintainer approves each new package and each update. `CODEOWNERS` makes that approval a requirement for every file in the repository, the tools and workflows included.
 
-Two findings do not fail `checks`, because only a person can judge them. The job `maintainer sign-off` fails until a maintainer sets a label:
+Two findings do not fail `checks`, because only a person can judge them. The job `maintainer sign-off` of the workflow `sign-off` fails until a maintainer sets a label. It runs the workflow and the tools as `main` has them, and reads the pull request only as data, so a pull request cannot change how it is judged:
 
 | Finding | Label | What the maintainer checks |
 | --- | --- | --- |
 | The pull request adds a host to a manifest, or adds a new package. | `hosts-approved` | The host belongs to the service, and the script sends login data only there. |
 | A script reads `io`. | `io-acknowledged` | The script works when `io.open` is `nil`. Moneten gives scripts an `io` table without functions. |
 
-Only maintainers can set labels. Adding or removing a label runs every job again. A label counts only when it was set after the newest push to the pull request, so a push after the sign-off needs a new sign-off: remove the label and set it again.
+Only maintainers can set labels. Adding or removing a label runs every job again. A label counts only when it was set after the newest push to the pull request, also when a force-push brings back a commit that was the head before, so a push after the sign-off needs a new sign-off: remove the label and set it again.
 
 Some addresses only produce a warning: a Lua pattern such as `"^https://"`, a string that goes into `MM.urlencode`, and an XML namespace or the OAuth redirect address. The warning gives the reason. The maintainer reads these lines too.
 
@@ -41,13 +41,13 @@ The checks cannot see:
 - bytes that reach `string.char` from a table or a variable, as in `string.char(table.unpack(t))`, or through an alias in an enclosing function under another name, two numbers per call;
 - what the script sends to a declared host, such as login data that a service forwards to someone else;
 - a license restriction phrased in words that the check does not list, inside a name or year of the template;
-- a change to `tools/` or `.github/` in the same pull request, which changes the checks themselves. `CODEOWNERS` makes the maintainer review those files.
+- a change to `tools/` or `.github/` in the same pull request, which changes what the job `checks` reports. The job `maintainer sign-off` runs the tools of `main`, and `CODEOWNERS` makes the maintainer review those files.
 
 The maintainer reads every change for these cases.
 
 ## Signing
 
-The workflow `sign` runs on each push to `main` that changes what the app downloads. It waits until a maintainer approves the run in the environment `catalog-signing`. The index then gets the next version number, and the run publishes it with its signature. The run signs only the newest commit of `main`, never a lower index version than the published one, and never a lower package version than the published one, so a rerun of an old run cannot bring back old packages. A published version of a package never changes. A changed file needs a higher version in the manifest, and the checks fail without one. [Set up the signing key](docs/set-up-signing.md) describes the environment and the key rotation.
+The workflow `sign` runs on each push to `main` that changes what the app downloads. It waits until a maintainer approves the run in the environment `catalog-signing`. The index then gets the next version number, and the run pushes it with its signature to `gh-pages` and deploys that tree to GitHub Pages. Only the job that pushes holds a write token, and only the job that deploys may write to Pages. The run signs only the newest commit of `main`, never a lower index version than the published one, and never a lower package version than the published one, so a rerun of an old run cannot bring back old packages. A published version of a package never changes. A changed file needs a higher version in the manifest, and the checks fail without one. [Set up the signing key](docs/set-up-signing.md) describes the environment and the key rotation.
 
 ## States of a package
 

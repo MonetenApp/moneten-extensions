@@ -1,6 +1,6 @@
 # Set up the signing key
 
-The workflow `sign` signs the catalog index and publishes it to `https://extensions.monetenapp.com`. It needs a key pair, a protected environment, and GitHub Pages. A maintainer with admin rights on `MonetenApp/moneten-extensions` does these steps once. GitHub does not let a workflow token set environment protection rules, so no automation does them.
+The workflow `sign` signs the catalog index and publishes it to `https://extensions.monetenapp.com`. It needs a key pair, the protected environment `catalog-signing`, GitHub Pages, protection rules for `main` and `gh-pages`, and a short list of people who can set labels. A maintainer with admin rights on `MonetenApp/moneten-extensions` does these steps once. GitHub does not let a workflow token set environment protection rules, so no automation does them.
 
 ## Make the two key pairs
 
@@ -28,24 +28,25 @@ Use OpenSSL 3 or later. `openssl version` shows the version.
 6. Under **Environment secrets**, click **Add environment secret**.
 7. Type `INDEX_SIGNING_KEY` as the name. As the value, paste the whole content of `current.pem`, including the lines `-----BEGIN PRIVATE KEY-----` and `-----END PRIVATE KEY-----`. On a Mac, `pbcopy < current.pem` copies it. Click **Add secret**.
 
+## Turn on GitHub Pages
+
+The workflow `sign` deploys the site with the Pages actions, because a push made with the workflow token starts no Pages build. Do these steps before the first signing run.
+
+1. At your DNS provider, add the record `extensions` of type `CNAME` with the value `monetenapp.github.io`.
+2. In **Settings**, click **Pages**.
+3. Under **Build and deployment**, set **Source** to **GitHub Actions**.
+4. Under **Custom domain**, type `extensions.monetenapp.com` and click **Save**.
+5. When the DNS check passes, select **Enforce HTTPS**.
+6. In **Settings**, click **Environments**, then **github-pages**. GitHub created it in step 3. Under **Deployment branches and tags**, make sure that only `main` may deploy.
+
 ## Approve the first signing run
 
-Each push to `main` that changes a package, `status.json`, `keys/`, `schema/`, or the signing tools starts the workflow `sign`. The run waits for your approval.
+Each push to `main` that changes a package, `status.json`, `keys/`, `schema/`, or the signing tools starts the workflow `sign`. Its job `check every package` runs the checks with a read-only token. The job `sign the index and push it to gh-pages` then waits for your approval.
 
 1. Click **Actions**, then the waiting run of **sign**.
 2. Click **Review deployments**, select **catalog-signing**, and click **Approve and deploy**.
 
-The run checks every package again, builds `index.json`, signs it, checks the signature against `keys/`, and pushes the site to the branch `gh-pages`. If the secret matches neither `keys/current.pub` nor `keys/next.pub`, or if the published index has no valid signature by one of them, the run fails and publishes nothing.
-
-## Serve the site from extensions.monetenapp.com
-
-Do these steps after the first signing run, because the branch `gh-pages` exists only then.
-
-1. At your DNS provider, add the record `extensions` of type `CNAME` with the value `monetenapp.github.io`.
-2. In **Settings**, click **Pages**.
-3. Under **Build and deployment**, set **Source** to **Deploy from a branch**. Choose the branch `gh-pages` and the folder `/ (root)`, and click **Save**.
-4. Under **Custom domain**, type `extensions.monetenapp.com` and click **Save**.
-5. When the DNS check passes, select **Enforce HTTPS**.
+The run builds `index.json`, signs it, checks the signature against `keys/`, and pushes the site to the branch `gh-pages`. The job `deploy to GitHub Pages` then publishes that same tree. If the secret matches neither `keys/current.pub` nor `keys/next.pub`, or if the published index has no valid signature by one of them, the run fails and publishes nothing.
 
 `curl -s https://extensions.monetenapp.com/index.json` then shows the signed index.
 
@@ -56,10 +57,19 @@ The checks only help when a pull request cannot skip them.
 1. In **Settings**, click **Branches**, then **Add classic branch protection rule**. Type `main` as the branch name pattern.
 2. Select **Require a pull request before merging**, **Require approvals** with 1, and **Require review from Code Owners**.
 3. Select **Dismiss stale pull request approvals when new commits are pushed** and **Require approval of the most recent reviewable push**. An approval then covers only the commits that the maintainer read.
-4. Select **Require status checks to pass before merging** and add `checks` and `maintainer sign-off`. Add `ext test` when `tools/ext.lock` pins a commit. Until then the job is skipped, and GitHub counts a skipped required check as passed.
+4. Select **Require status checks to pass before merging** and add `checks` and `maintainer sign-off`. Add `ext test` when `tools/ext.lock` pins a commit. Until then the job is skipped, and GitHub counts a skipped required check as passed. The workflow `sign-off` runs as `main` has it, so `maintainer sign-off` first appears on pull requests opened or updated after the workflow is on `main`.
 5. Click **Create**.
 
 GitHub does not count the approval of a pull request's author. While you are the only maintainer, leave **Do not allow bypassing the above settings** cleared, so that you can merge your own pull requests as an admin.
+
+## Let only maintainers set labels
+
+The labels `hosts-approved` and `io-acknowledged` approve hosts and the use of `io`. GitHub has no ruleset for labels. Every account with the role Triage, Write, Maintain, or Admin on the repository can set any label, so only maintainers may hold these roles.
+
+1. In **Settings**, click **Collaborators and teams**. Give a role above Read only to maintainers. A contributor opens pull requests from a fork and needs no role.
+2. Open the settings of the organization `MonetenApp` and click **Member privileges**. Set **Base permissions** to **Read** or **No permission**.
+3. In the organization, open **Teams**. Check that no team gives a role above Read on `moneten-extensions` to anyone who is not a maintainer.
+4. In **Settings**, click **Actions**, then **General**. Under **Workflow permissions**, select **Read repository contents and packages permissions**. Each workflow asks for more only in the job that needs it.
 
 ## Protect gh-pages
 
