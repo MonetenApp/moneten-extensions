@@ -26,6 +26,8 @@ ROOT = Path(__file__).resolve().parent.parent
 LUA_VERSION = "5.4.8"
 
 SIGN_OFF_LABELS = {"io": "io-acknowledged", "new-host": "hosts-approved"}
+# Findings that stop the check from reading the hosts or the io use, so no label can stand in for the inspection.
+UNINSPECTED = {"schema", "layout", "syntax"}
 
 FORBIDDEN_GLOBALS = {"load", "loadstring", "dofile", "loadfile", "require", "debug", "package"}
 OS_ALLOWED = {"time", "date", "clock", "difftime"}
@@ -894,7 +896,7 @@ def main(argv: list[str] | None = None) -> int:
 
     labels = {label.strip() for label in args.labels.split(",") if label.strip()}
     if args.sign_off:
-        shown = [f for f in findings if f.label]
+        shown = [f for f in findings if f.label or f.rule in UNINSPECTED]
         failing = [f for f in shown if f.label not in labels]
     else:
         shown = findings
