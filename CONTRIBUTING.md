@@ -24,7 +24,7 @@ tools/setup.sh
 BASE=origin/main tools/check-all.sh
 ```
 
-`tools/setup.sh` builds `luac` 5.4.8 into `.cache/` and installs the Python packages from `tools/requirements.txt`, which pins each package by its SHA-256. To change a package, edit `tools/requirements.in` and run the command at the top of `tools/requirements.txt`. `tools/check-all.sh` prints one line for each finding, with the file and the line. Set `EXT` to the path of an `ext` binary to also replay the recordings.
+`tools/setup.sh` builds `luac` 5.4.8 into `.cache/` on every run, from the Lua tarball whose SHA-256 it checks, and installs the Python packages from `tools/requirements.txt`, which pins each package by its SHA-256. To change a package, edit `tools/requirements.in` and run the command at the top of `tools/requirements.txt`. `tools/check-all.sh` prints one line for each finding, with the file and the line. Set `EXT` to the path of an `ext` binary to also replay the recordings.
 
 To check one package, run `python3 tools/check_package.py extensions/<id>`.
 

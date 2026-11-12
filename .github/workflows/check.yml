@@ -37,7 +37,7 @@ jobs:
           cache-dependency-path: tools/requirements.txt
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: .cache
+          path: .cache/lua-*.tar.gz
           key: lua-${{ runner.os }}-${{ hashFiles('tools/setup.sh') }}
       - run: tools/setup.sh
       - run: tools/check-all.sh
@@ -68,7 +68,7 @@ jobs:
           cache-dependency-path: tools/requirements.txt
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: .cache
+          path: .cache/lua-*.tar.gz
           key: lua-${{ runner.os }}-${{ hashFiles('tools/setup.sh') }}
       - run: tools/setup.sh
       - name: Keep only the labels set after the newest push
