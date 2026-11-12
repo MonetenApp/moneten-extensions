@@ -23,7 +23,6 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
-      ext-repository: ${{ steps.ext-lock.outputs.repository }}
       ext-commit: ${{ steps.ext-lock.outputs.commit }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -42,9 +41,14 @@ jobs:
       - run: tools/setup.sh
       - run: tools/check-all.sh
       - id: ext-lock
-        name: Read tools/ext.lock
+        name: Read the commit of MonetenApp/Moneten in tools/ext.lock
         run: |
-          grep -E '^(repository|commit)=' tools/ext.lock >> "$GITHUB_OUTPUT"
+          commit="$(sed -n 's/^commit=//p' tools/ext.lock)"
+          if [[ -n "$commit" && ! "$commit" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error file=tools/ext.lock::commit must be empty or a full commit of MonetenApp/Moneten."
+            exit 1
+          fi
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
 
   ext-test:
     name: ext test
@@ -60,10 +64,15 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: ${{ needs.checks.outputs.ext-repository }}
+          repository: MonetenApp/Moneten
           ref: ${{ needs.checks.outputs.ext-commit }}
           path: .cache/moneten
+          fetch-depth: 0
           persist-credentials: false
+      - name: Require a commit on main of MonetenApp/Moneten
+        env:
+          COMMIT: ${{ needs.checks.outputs.ext-commit }}
+        run: git -C .cache/moneten merge-base --is-ancestor "$COMMIT" origin/main
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
