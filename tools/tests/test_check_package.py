@@ -1,0 +1,216 @@
+import json
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+import check_package
+from check_package import check_package as check
+
+TOOLS = Path(__file__).resolve().parent.parent
+LUA = "extensions/example/Example.lua"
+MANIFEST = "extensions/example/manifest.json"
+FIXTURE = "extensions/example/recording/fixture.json"
+
+
+def package(catalog):
+    return catalog / "extensions" / "example"
+
+
+def append_lua(catalog, code):
+    script = package(catalog) / "Example.lua"
+    lines = script.read_text().splitlines()
+    script.write_text("\n".join([*lines, *code.splitlines()]) + "\n")
+    return len(lines) + 1
+
+
+def edit_manifest(catalog, **changes):
+    path = package(catalog) / "manifest.json"
+    manifest = json.loads(path.read_text())
+    manifest.update(changes)
+    path.write_text(json.dumps(manifest, indent=2) + "\n")
+
+
+def summary(findings):
+    return [(f.path, f.line, f.rule) for f in findings]
+
+
+def test_example_package_passes(catalog, luac):
+    assert check(package(catalog), luac) == []
+
+
+def test_os_execute_fails_with_file_and_line(catalog, luac):
+    line = append_lua(catalog, 'os.execute("ls")')
+    findings = check(package(catalog), luac)
+    assert summary(findings) == [(LUA, line, "forbidden")]
+    assert findings[0].message == "os.execute is not available."
+
+
+def test_require_fails(catalog, luac):
+    line = append_lua(catalog, 'local x = require("x")')
+    assert summary(check(package(catalog), luac)) == [(LUA, line, "forbidden")]
+
+
+def test_forbidden_global_through_g_fails(catalog, luac):
+    line = append_lua(catalog, 'local f = _G.load\nlocal g = rawget(_G, "dofile")\nlocal h = _G[f]')
+    findings = check(package(catalog), luac)
+    assert summary(findings) == [(LUA, line, "forbidden"), (LUA, line + 1, "forbidden"), (LUA, line + 2, "forbidden")]
+    assert [f.message.split(" ")[0] for f in findings] == ["load", "dofile", "_G"]
+
+
+def test_string_dump_fails(catalog, luac):
+    line = append_lua(catalog, 'local a = string.dump\nlocal b = ("x"):dump()')
+    assert summary(check(package(catalog), luac)) == [(LUA, line, "forbidden"), (LUA, line + 1, "forbidden")]
+
+
+def test_io_open_guard_needs_a_label_and_is_no_error(catalog, luac):
+    line = append_lua(catalog, "if io ~= nil and io.open ~= nil then\n  local f = io.open(\"x\")\nend")
+    findings = check(package(catalog), luac)
+    assert {(f.line, f.rule, f.label) for f in findings} == {(line, "io", "io-acknowledged"), (line + 1, "io", "io-acknowledged")}
+
+
+def test_unlisted_host_fails(catalog, luac):
+    line = append_lua(catalog, 'local pixel = "https://tracker.example/p"')
+    findings = check(package(catalog), luac)
+    assert summary(findings) == [(LUA, line, "host")]
+    assert findings[0].message == "tracker.example is not in the hosts of manifest.json."
+
+
+def test_plain_http_and_host_built_at_run_time_fail(catalog, luac):
+    line = append_lua(catalog, 'local a = "http://www.bank.example/"\nlocal b = "https://" .. tostring(a)')
+    assert summary(check(package(catalog), luac)) == [(LUA, line, "host"), (LUA, line + 1, "host")]
+
+
+def test_lua_patterns_and_xml_namespaces_pass(catalog, luac):
+    append_lua(catalog, 'local p = "^https?://([^/]+)"\nlocal q = "www%.bank%.example"\nlocal ns = \'xmlns="http://schemas.xmlsoap.org/soap/envelope/"\'')
+    assert check(package(catalog), luac) == []
+
+
+def test_missing_license_fails(catalog, luac):
+    (package(catalog) / "LICENSE").unlink()
+    assert summary(check(package(catalog), luac)) == [("extensions/example/LICENSE", 0, "license")]
+
+
+def test_license_outside_the_allowlist_fails(catalog, luac):
+    edit_manifest(catalog, license="CC-BY-NC-4.0")
+    findings = check(package(catalog), luac)
+    assert summary(findings) == [(MANIFEST, 1, "schema")]
+    assert findings[0].message.startswith("license: 'CC-BY-NC-4.0' is not one of")
+
+
+def test_license_text_that_does_not_match_the_manifest_fails(catalog, luac):
+    edit_manifest(catalog, license="GPL-3.0-or-later")
+    assert summary(check(package(catalog), luac)) == [("extensions/example/LICENSE", 1, "license")]
+
+
+def test_long_line_fails(catalog, luac):
+    code = "local t = {" + ", ".join(str(n) for n in range(200)) + "}"
+    line = append_lua(catalog, code)
+    findings = check(package(catalog), luac)
+    assert summary(findings) == [(LUA, line, "obfuscation")]
+    assert findings[0].message == f"the line has {len(code)} characters. The limit is 500."
+
+
+def test_bytecode_fails(catalog, luac):
+    script = package(catalog) / "Example.lua"
+    subprocess.run([luac, "-o", str(script), str(script)], check=True)
+    assert summary(check(package(catalog), luac)) == [(LUA, 1, "obfuscation")]
+
+
+def test_escaped_byte_string_fails(catalog, luac):
+    line = append_lua(catalog, 'local blob = "' + "\\1" * 201 + '"')
+    assert summary(check(package(catalog), luac)) == [(LUA, line, "obfuscation")]
+
+
+def test_high_entropy_string_fails(catalog, luac):
+    alphabet = "".join(chr(c) for c in range(33, 127) if chr(c) not in "\\\"")
+    noise = "".join(alphabet[(n * 37 + n // 7) % len(alphabet)] for n in range(400))
+    line = append_lua(catalog, "local key = [[\n" + "\n".join(noise[i : i + 80] for i in range(0, 400, 80)) + "]]")
+    findings = check(package(catalog), luac)
+    assert [(f.path, f.rule) for f in findings] == [(LUA, "obfuscation")]
+    assert line <= findings[0].line <= line + 5
+    assert "looks encoded or encrypted" in findings[0].message
+
+
+def test_real_iban_in_recording_fails(catalog, luac):
+    fixture = package(catalog) / "recording" / "fixture.json"
+    lines = fixture.read_text().splitlines()
+    number = next(n for n, text in enumerate(lines, 1) if "DE02120300000000202051" in text)
+    fixture.write_text(fixture.read_text().replace("DE02120300000000202051", "DE89370400440532013000"))
+    findings = check(package(catalog), luac)
+    assert summary(findings) == [(FIXTURE, number, "personal-data")]
+    assert "DE89370400440532013000" in findings[0].message
+
+
+def test_email_outside_example_domains_fails(catalog, luac):
+    expected = package(catalog) / "recording" / "expected.json"
+    expected.write_text(expected.read_text().replace('"owner": "Erika Mustermann"', '"owner": "erika@mail.de"'))
+    assert summary(check(package(catalog), luac)) == [("extensions/example/recording/expected.json", 5, "personal-data")]
+
+
+def test_wildcard_host_fails_the_schema(catalog, luac):
+    edit_manifest(catalog, hosts=["*.bank.example"])
+    findings = check(package(catalog), luac)
+    assert summary(findings) == [(MANIFEST, 1, "schema")]
+    assert findings[0].message.startswith("hosts/0:")
+
+
+def test_unexpected_file_fails(catalog, luac):
+    (package(catalog) / "helper.luac").write_bytes(b"\x1bLua")
+    assert summary(check(package(catalog), luac)) == [("extensions/example/helper.luac", 0, "layout")]
+
+
+def test_new_host_needs_sign_off(catalog, luac):
+    edit_manifest(catalog, hosts=["api.bank.example", "login.bank.example", "www.bank.example"], version="1.1")
+    findings = check(package(catalog), luac, base="HEAD")
+    assert [(f.path, f.rule, f.message, f.label) for f in findings] == [(MANIFEST, "new-host", "adds the host login.bank.example.", "hosts-approved")]
+
+
+def test_changed_script_needs_a_higher_version(catalog, luac):
+    append_lua(catalog, "local unused = 1")
+    assert summary(check(package(catalog), luac, base="HEAD")) == [(MANIFEST, 1, "version")]
+    edit_manifest(catalog, version="1.0.1")
+    assert check(package(catalog), luac, base="HEAD") == []
+
+
+def test_changed_recording_needs_no_new_version(catalog, luac):
+    expected = package(catalog) / "recording" / "expected.json"
+    expected.write_text(expected.read_text().replace("Girokonto", "Konto"))
+    assert check(package(catalog), luac, base="HEAD") == []
+
+
+def run_cli(catalog, *args):
+    return subprocess.run(
+        [sys.executable, str(TOOLS / "check_package.py"), "--root", str(catalog), *args],
+        capture_output=True, text=True, env={"PATH": "/usr/bin:/bin", "LUAC": check_package.luac_path()},
+    )
+
+
+def test_cli_fails_on_errors_and_prints_one_line_per_finding(catalog):
+    line = append_lua(catalog, 'os.remove("x")')
+    result = run_cli(catalog)
+    assert result.returncode == 1
+    assert result.stdout == f"{LUA}:{line}: forbidden: os.remove is not available.\n"
+
+
+def test_cli_passes_io_warning_but_sign_off_needs_the_label(catalog):
+    line = append_lua(catalog, "local open = io.open")
+    warning = f"{LUA}:{line}: io: reads io.open. Moneten gives scripts an io table without functions, so the value is nil."
+    checks = run_cli(catalog)
+    assert (checks.returncode, checks.stdout) == (0, f"{warning} Needs the label io-acknowledged from a maintainer.\n")
+    assert run_cli(catalog, "--sign-off", "--base", "HEAD", "--changed").returncode == 1
+    labelled = run_cli(catalog, "--sign-off", "--base", "HEAD", "--changed", "--labels", "io-acknowledged")
+    assert (labelled.returncode, labelled.stdout) == (0, f"{warning} Acknowledged by the label io-acknowledged.\n")
+
+
+def test_cli_refuses_a_deleted_package(catalog):
+    shutil.rmtree(package(catalog))
+    result = run_cli(catalog, "--base", "HEAD")
+    assert result.returncode == 1
+    assert result.stdout.startswith("extensions/example:0: removed:")
+
+
+def test_cli_refuses_status_for_an_unknown_package(catalog):
+    (catalog / "status.json").write_text('{"ghost": {"state": "blocked", "note": "Sends the password to another host."}}\n')
+    result = run_cli(catalog)
+    assert (result.returncode, result.stdout) == (1, "status.json:1: schema: ghost has no folder in extensions/.\n")
