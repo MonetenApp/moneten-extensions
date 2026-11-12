@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -9,6 +10,7 @@ from pathlib import Path
 import pytest
 
 import check_package
+from conftest import git
 from check_package import check_package as check
 
 TOOLS = Path(__file__).resolve().parent.parent
@@ -358,3 +360,45 @@ def test_a_service_without_login_fields_fails(catalog, luac):
     findings = check(package(catalog), luac)
     assert summary(findings) == [(MANIFEST, 1, "schema")]
     assert findings[0].message.startswith("services/0/login:")
+
+
+def symlink(path, target):
+    path.unlink()
+    path.symlink_to(target)
+
+
+def hard_link(path, target):
+    path.unlink()
+    os.link(target, path)
+
+
+def fifo(path, target):
+    path.unlink()
+    os.mkfifo(path)
+
+
+@pytest.mark.parametrize("name", ["README.md", "manifest.json", "recording/fixture.json"])
+@pytest.mark.parametrize("replace", [symlink, hard_link, fifo])
+def test_a_package_file_that_is_not_a_regular_file_fails_unread(catalog, luac, tmp_path, name, replace):
+    secret = tmp_path / "environ"
+    secret.write_text("INDEX_SIGNING_KEY=secret\n")
+    replace(package(catalog) / name, secret)
+    findings = check(package(catalog), luac)
+    assert summary(findings) == [(f"extensions/example/{name}", 0, "layout")]
+    assert "not a regular file" in findings[0].message
+
+
+def test_a_package_folder_that_is_a_symbolic_link_fails(catalog):
+    (catalog / "extensions" / "mirror").symlink_to(package(catalog))
+    result = run_cli(catalog)
+    assert result.returncode == 1
+    assert result.stdout.startswith("extensions/mirror:0: layout: ")
+
+
+def test_a_symbolic_link_outside_the_packages_fails(catalog, tmp_path):
+    (catalog / "schema").mkdir()
+    (catalog / "schema" / "leak.json").symlink_to(tmp_path / "environ")
+    git(catalog, "add", "-A")
+    result = run_cli(catalog)
+    assert result.returncode == 1
+    assert result.stdout.startswith("schema/leak.json:0: layout: ")

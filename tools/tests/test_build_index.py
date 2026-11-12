@@ -132,3 +132,16 @@ def test_file_name_with_spaces_is_published_under_that_name(catalog, tmp_path):
     script = (folder / "Permanent TSB Business.lua").read_bytes()
     assert {"path": "Permanent TSB Business.lua", "size": len(script), "sha256": hashlib.sha256(script).hexdigest()} in entry["files"]
     assert (out / "example" / "1.0" / "Permanent TSB Business.lua").read_bytes() == script
+
+
+def test_a_symbolic_link_in_a_package_is_refused_and_nothing_is_written(catalog, tmp_path):
+    secret = tmp_path / "environ"
+    secret.write_text("INDEX_SIGNING_KEY=secret\n")
+    readme = catalog / "extensions" / "example" / "README.md"
+    readme.unlink()
+    readme.symlink_to(secret)
+    out = tmp_path / "site"
+    result = build(catalog, out)
+    assert result.returncode == 1
+    assert "example/README.md is not a regular file" in result.stderr
+    assert not out.exists()

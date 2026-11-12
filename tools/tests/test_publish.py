@@ -86,3 +86,16 @@ def test_gh_pages_without_an_index_is_not_overwritten(repo):
     assert "gh-pages has no readable index.json" in result.stderr
     assert published_version(origin) is None
 
+
+
+def test_a_tracked_symbolic_link_stops_the_publish(repo, tmp_path):
+    work, key, origin = repo
+    (tmp_path / "environ").write_text("INDEX_SIGNING_KEY=secret\n")
+    (work / "schema" / "leak.json").symlink_to(tmp_path / "environ")
+    git(work, "add", "-A")
+    git(work, "commit", "-q", "-m", "leak")
+    git(work, "push", "-q", "origin", "main")
+    result = publish(work, key)
+    assert result.returncode == 1
+    assert "schema/leak.json" in result.stderr
+    assert published_version(origin) is None
