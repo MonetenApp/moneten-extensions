@@ -24,7 +24,7 @@ Two findings do not fail `checks`, because only a person can judge them. The job
 | The pull request adds a host to a manifest, or adds a new package. | `hosts-approved` | The host belongs to the service, and the script sends login data only there. |
 | A script reads `io`. | `io-acknowledged` | The script works when `io.open` is `nil`. Moneten gives scripts an `io` table without functions. |
 
-The job also fails, whatever the labels, when a schema, layout, or syntax error keeps the check from reading the hosts and the scripts of a package.
+The job also fails, whatever the labels, when a schema, layout, syntax, or obfuscation finding keeps the check from reading the hosts and the scripts of a package.
 
 Only maintainers can set labels. A label counts only while a maintainer's approving review names the newest commit of the pull request, because a review records the commit it read. So approve the pull request first, then set the label, which runs the job again. A push after the sign-off needs a new approval: approve again, then remove the label and set it again, or re-run the job. On a pull request that a maintainer opened from a branch of this repository, the label counts without a review, because GitHub does not let authors approve their own pull requests.
 

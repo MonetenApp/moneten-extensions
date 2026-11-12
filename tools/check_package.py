@@ -26,8 +26,9 @@ ROOT = Path(__file__).resolve().parent.parent
 LUA_VERSION = "5.4.8"
 
 SIGN_OFF_LABELS = {"io": "io-acknowledged", "new-host": "hosts-approved"}
-# Findings that stop the check from reading the hosts or the io use, so no label can stand in for the inspection.
-UNINSPECTED = {"schema", "layout", "syntax"}
+# Findings that stop the check from reading the hosts or the io use, such as bytecode or a script that is not
+# UTF-8, or that hide them, so no label can stand in for the inspection.
+UNINSPECTED = {"schema", "layout", "syntax", "obfuscation"}
 
 FORBIDDEN_GLOBALS = {"load", "loadstring", "dofile", "loadfile", "require", "debug", "package"}
 OS_ALLOWED = {"time", "date", "clock", "difftime"}
