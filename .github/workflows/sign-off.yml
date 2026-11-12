@@ -2,9 +2,11 @@ name: sign-off
 
 # pull_request_target runs this file and the tools as the base branch has them, so a pull request
 # cannot change the check that judges it. The pull request is checked out only as data. Nothing
-# from it runs: luac only parses its Lua files.
+# from it runs: luac only parses its Lua files. Only pull requests into main run it, because a
+# branch with its own sign-off.yml would otherwise get this workflow's token.
 on:
   pull_request_target:
+    branches: [main]
     types: [opened, synchronize, reopened, labeled, unlabeled]
 
 permissions: {}
@@ -20,8 +22,6 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
-      actions: read
-      issues: read
       pull-requests: read
     steps:
       - name: Check out the tools of the base branch
@@ -40,10 +40,6 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: trusted/.cache/lua-*.tar.gz
-          key: lua-${{ runner.os }}-${{ hashFiles('trusted/tools/setup.sh') }}
       - run: trusted/tools/setup.sh
       - name: Keep only the labels set after the newest push
         id: labels
