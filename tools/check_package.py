@@ -16,7 +16,7 @@ import re
 import subprocess
 import sys
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import jsonschema
@@ -28,28 +28,20 @@ SIGN_OFF_LABELS = {"io": "io-acknowledged", "new-host": "hosts-approved"}
 
 FORBIDDEN_GLOBALS = {"load", "loadstring", "dofile", "loadfile", "require", "debug", "package"}
 OS_ALLOWED = {"time", "date", "clock", "difftime"}
-UNCONTACTED_HOSTS = {"service.moneymoney-app.com", "www.w3.org", "schemas.xmlsoap.org"}
 
 MAX_LINE = 500
 MAX_ESCAPED_BYTES = 200
 ENTROPY_MIN_BYTES = 300
 ENTROPY_MAX_BITS = 5.5
+ENCODED_MAX_CHARS = 300
+MIN_LITERAL_ARGUMENTS = 8
+MAX_LITERAL_BYTES = 64
 
 ALLOWED_IBAN = "DE02120300000000202051"
 ALLOWED_EMAIL_DOMAINS = ("example.com", "example.org", "example.net")
 
-LICENSE_PHRASES = {
-    "MIT": ["permission is hereby granted, free of charge, to any person obtaining a copy"],
-    "BSD-2-Clause": ["redistribution and use in source and binary forms"],
-    "BSD-3-Clause": ["redistribution and use in source and binary forms", "neither the name"],
-    "ISC": ["permission to use, copy, modify, and/or distribute this software for any purpose"],
-    "Apache-2.0": ["apache license", "version 2.0, january 2004"],
-    "MPL-2.0": ["mozilla public license version 2.0"],
-    "LGPL-2.1-or-later": ["gnu lesser general public license version 2.1, february 1999"],
-    "LGPL-3.0-or-later": ["gnu lesser general public license version 3, 29 june 2007"],
-    "GPL-3.0-or-later": ["gnu general public license version 3, 29 june 2007"],
-}
-LICENSE_EXCLUDED_PHRASES = {"BSD-2-Clause": ["neither the name"]}
+LICENSE_TEMPLATES = ROOT / "tools" / "licenses"
+RESTRICTING_WORDS = re.compile(r"commercial|commons clause|\bsell|\bsold\b|resale|prohibit|forbid|not permitted|personal use|private use|without (?:the )?(?:prior )?(?:written )?permission|proprietary|\bdo not\b")
 
 
 @dataclass(frozen=True)
@@ -58,6 +50,7 @@ class Finding:
     line: int
     rule: str
     message: str
+    warning: bool = False
 
     @property
     def label(self) -> str | None:
@@ -65,7 +58,7 @@ class Finding:
 
     def render(self, labels: set[str] = frozenset()) -> str:
         text = f"{self.path}:{self.line}: {self.rule}: {self.message}"
-        if self.label is None:
+        if self.warning or self.label is None:
             return text
         if self.label in labels:
             return f"{text} Acknowledged by the label {self.label}."
@@ -123,16 +116,57 @@ def check_layout(pkg: Package, manifest: dict) -> list[Finding]:
     return findings
 
 
+TEMPLATE_PART = re.compile(r'<<(beginOptional|endOptional|var(?:;\w+="(?:[^"\\]|\\.)*")+)>>')
+
+
+def normalize_license(text: str) -> str:
+    """Applies the SPDX matching guidelines that matter here: case, quotes, dashes, the copyright sign, and markup.
+    Whitespace becomes single spaces, which compact_license then drops for the comparison."""
+    text = text.lower().replace("https:", "http:").replace("(c)", "©")
+    text = re.sub(r"[\"“”‘’`´«»„]", "'", text)
+    text = re.sub(r"[‐‑‒–—―]+|-+", "-", text)
+    return re.sub(r"\s+", " ", re.sub(r"[<>*]", "", text)).strip()
+
+
+def compact_license(text: str) -> str:
+    return normalize_license(text).replace(" ", "")
+
+
+def license_pattern(spdx_id: str) -> re.Pattern:
+    """Compiles an SPDX license template into a regex over compact_license text. Each var becomes a group."""
+    template = (LICENSE_TEMPLATES / f"{spdx_id}.template.txt").read_text(encoding="utf-8")
+    parts, position, count = [], 0, 0
+    for match in TEMPLATE_PART.finditer(template):
+        parts.append(re.escape(compact_license(template[position : match.start()])))
+        if match[1] == "beginOptional":
+            parts.append("(?:")
+        elif match[1] == "endOptional":
+            parts.append(")?")
+        else:
+            var = re.search(r'match="((?:[^"\\]|\\.)*)"', match[1])[1].replace("\\s+", "\\s*").replace(" ", "").replace(">", "").replace("<", "").replace(".+", ".{1,300}").replace(".*", ".{0,300}").replace(".{0,5000}", ".{0,1000}")
+            var = re.sub(r"\.\{\d+,(\d+)\}", r".{0,\1}", var)
+            parts.append(f"(?P<v{count}>{var})")
+            count += 1
+        position = match.end()
+    parts.append(re.escape(compact_license(template[position:])))
+    return re.compile("".join(parts), re.IGNORECASE | re.DOTALL)
+
+
 def check_license(pkg: Package, manifest: dict) -> list[Finding]:
     path = pkg.folder / "LICENSE"
     if not path.is_file():
         return [Finding(pkg.rel("LICENSE"), 0, "license", "LICENSE is missing.")]
-    text = " ".join(path.read_text(encoding="utf-8", errors="replace").lower().split())
+    spaced = normalize_license(path.read_text(encoding="utf-8", errors="replace"))
+    letters = [i for i, c in enumerate(spaced) if c != " "]
     declared = manifest["license"]
-    found = all(p in text for p in LICENSE_PHRASES[declared]) and not any(p in text for p in LICENSE_EXCLUDED_PHRASES.get(declared, []))
-    if found:
-        return []
-    return [Finding(pkg.rel("LICENSE"), 1, "license", f"LICENSE does not hold the text of {declared}, the license in manifest.json.")]
+    match = license_pattern(declared).fullmatch(spaced.replace(" ", ""))
+    if match is None:
+        return [Finding(pkg.rel("LICENSE"), 1, "license", f"LICENSE is not the text of {declared}, the license in manifest.json. Only the names, years, and other blanks of the SPDX template may differ, and nothing may be added.")]
+    for group in range(1, len(match.groups()) + 1):
+        start, end = match.span(group)
+        if end > start and (word := RESTRICTING_WORDS.search(spaced[letters[start] : letters[end - 1] + 1])):
+            return [Finding(pkg.rel("LICENSE"), 1, "license", f"LICENSE adds the words {word[0]!r} to the text of {declared}. A catalog package may not restrict its license.")]
+    return []
 
 
 @dataclass
@@ -145,14 +179,17 @@ class Instruction:
 
 @dataclass
 class LuaFunction:
-    line: int
-    instructions: list[Instruction]
-    constants: list[str]
+    first_line: int
+    last_line: int
+    instructions: list[Instruction] = field(default_factory=list)
+    constants: list[str] = field(default_factory=list)
+    locals: list[str] = field(default_factory=list)
 
 
-HEADER = re.compile(r"^(?:main|function) <.*:(\d+),\d+>")
+HEADER = re.compile(r"^(?:main|function) <.*:(\d+),(\d+)>")
 INSTRUCTION = re.compile(r"^\t\d+\t\[(\d+)\]\t(\w+)\s*([^;]*?)\s*(?:;\s*(.*))?$")
 CONSTANT = re.compile(r'^\t\d+\tS\t"(.*)"$')
+LOCAL = re.compile(r"^\t\d+\t(\S+)\t\d+\t\d+$")
 QUOTED = r'"((?:[^"\\]|\\.)*)"'
 ESCAPES = {"a": 7, "b": 8, "f": 12, "n": 10, "r": 13, "t": 9, "v": 11, '"': 34, "\\": 92}
 
@@ -175,6 +212,11 @@ def unescape(printed: str) -> bytes:
     return bytes(out)
 
 
+def quoted_text(comment: str) -> str | None:
+    match = re.fullmatch(QUOTED, comment)
+    return unescape(match[1]).decode("utf-8", "replace") if match else None
+
+
 def luac_path() -> str:
     luac = os.environ.get("LUAC") or str(ROOT / ".cache" / f"lua-{LUA_VERSION}" / "src" / "luac")
     try:
@@ -191,22 +233,50 @@ def compile_listing(luac: str, path: Path) -> tuple[list[LuaFunction] | None, st
     if result.returncode != 0:
         return None, result.stderr.strip()
     functions: list[LuaFunction] = []
-    in_constants = False
+    section = "code"
     for row in result.stdout.splitlines():
         if header := HEADER.match(row):
-            functions.append(LuaFunction(int(header[1]), [], []))
-            in_constants = False
-        elif row.startswith("constants ("):
-            in_constants = True
-        elif row.startswith(("locals (", "upvalues (")):
-            in_constants = False
-        elif in_constants:
+            functions.append(LuaFunction(int(header[1]), int(header[2])))
+            section = "code"
+        elif row.startswith(("constants (", "locals (", "upvalues (")):
+            section = row.split(" ")[0]
+        elif section == "constants":
             if constant := CONSTANT.match(row):
                 functions[-1].constants.append(constant[1])
-        elif instruction := INSTRUCTION.match(row):
+        elif section == "locals":
+            if local := LOCAL.match(row):
+                functions[-1].locals.append(local[1])
+        elif section == "code" and (instruction := INSTRUCTION.match(row)):
             args = [int(a) for a in re.findall(r"-?\d+", instruction[3])]
             functions[-1].instructions.append(Instruction(int(instruction[1]), instruction[2], args, instruction[4] or ""))
+    for fn in functions:
+        fn.instructions = fold_long_global_names(fn.instructions)
     return functions, ""
+
+
+def fold_long_global_names(instructions: list[Instruction]) -> list[Instruction]:
+    """Lua compiles a global with a long name, or one past the 255th constant, as _ENV loaded into a register and indexed.
+    This turns each such read or write back into the GETTABUP or SETTABUP that a short name gets."""
+    out = list(instructions)
+    i = 0
+    while i + 1 < len(out):
+        env, key = out[i], out[i + 1]
+        if env.op == "GETUPVAL" and env.comment == "_ENV" and key.op == "LOADK" and re.fullmatch(QUOTED, key.comment):
+            r, k = env.args[0], key.args[0]
+            for j in range(i + 2, len(out)):
+                use = out[j]
+                if use.op == "GETTABLE" and use.args[1:3] == [r, k]:
+                    out[j] = Instruction(use.line, "GETTABUP", [use.args[0], 0, 0], f"_ENV {key.comment}")
+                elif use.op == "SETTABLE" and use.args[:2] == [r, k]:
+                    out[j] = Instruction(use.line, "SETTABUP", [0, 0, use.args[2]], f"_ENV {key.comment}")
+                elif not use.args or use.args[0] <= k or use.op in ("SETTABUP", "SETUPVAL", "RETURN", "TAILCALL", "JMP"):
+                    break
+                else:
+                    continue
+                del out[i : i + 2]
+                break
+        i += 1
+    return out
 
 
 def next_field_read(fn: LuaFunction, index: int, register: int) -> str | None:
@@ -214,8 +284,7 @@ def next_field_read(fn: LuaFunction, index: int, register: int) -> str | None:
         return None
     following = fn.instructions[index + 1]
     if following.op in ("GETFIELD", "SELF") and following.args[1] == register:
-        match = re.fullmatch(QUOTED, following.comment)
-        return unescape(match[1]).decode("utf-8", "replace") if match else None
+        return quoted_text(following.comment)
     return None
 
 
@@ -229,15 +298,23 @@ def rawget_key(fn: LuaFunction, index: int, register: int) -> str | None:
         return None
     before, after = fn.instructions[index - 1], fn.instructions[index + 1]
     if before.op == "GETTABUP" and before.comment == '_ENV "rawget"' and before.args[0] == register - 1:
-        if after.op == "LOADK" and after.args[0] == register + 1 and (match := re.fullmatch(QUOTED, after.comment)):
-            return unescape(match[1]).decode("utf-8", "replace")
+        if after.op == "LOADK" and after.args[0] == register + 1:
+            return quoted_text(after.comment)
     return None
+
+
+ENV_AS_VALUE = "_ENV is used as a value. The check follows only reads of a fixed global name, such as os.time, so it cannot see what the script reads through it."
 
 
 def check_globals(rel: str, functions: list[LuaFunction]) -> list[Finding]:
     findings = []
     for fn in functions:
+        if "_ENV" in fn.locals:
+            findings.append(Finding(rel, fn.first_line, "forbidden", "a local variable or parameter is named _ENV. It replaces the globals of the code after it, so the check cannot see which globals the script reads."))
         for i, ins in enumerate(fn.instructions):
+            if ins.op == "GETUPVAL" and ins.comment == "_ENV":
+                findings.append(Finding(rel, ins.line, "forbidden", ENV_AS_VALUE))
+                continue
             if ins.op == "SELF" and ins.comment == '"dump"':
                 findings.append(Finding(rel, ins.line, "forbidden", "string.dump is not available. The check refuses every :dump() call."))
                 continue
@@ -245,26 +322,101 @@ def check_globals(rel: str, functions: list[LuaFunction]) -> list[Finding]:
                 continue
             name, index, register = unescape(match[1]).decode("utf-8", "replace"), i, ins.args[0]
             if name == "_G":
-                if (field := next_field_read(fn, index, register)) is not None:
-                    name, index, register = field, index + 1, fn.instructions[index + 1].args[0]
+                if (field_name := next_field_read(fn, index, register)) is not None:
+                    name, index, register = field_name, index + 1, fn.instructions[index + 1].args[0]
                 elif (key := rawget_key(fn, index, register)) is not None:
                     name, index, register = key, index + 1, -1
                 else:
                     findings.append(Finding(rel, ins.line, "forbidden", "_G is used other than as _G.name or rawget(_G, \"name\"). The check cannot see which global the script reads."))
                     continue
-            field = next_field_read(fn, index, register)
+            field_name = next_field_read(fn, index, register)
             if name in FORBIDDEN_GLOBALS:
                 findings.append(Finding(rel, ins.line, "forbidden", f"{name} is not available."))
-            elif name == "os" and field is None and not next_is_truth_test(fn, index, register):
+            elif name == "os" and field_name is None and not next_is_truth_test(fn, index, register):
                 findings.append(Finding(rel, ins.line, "forbidden", "os is used other than as os.time, os.date, os.clock, or os.difftime."))
-            elif name == "os" and field not in OS_ALLOWED:
-                findings.append(Finding(rel, ins.line, "forbidden", f"os.{field} is not available."))
-            elif name == "string" and field == "dump":
+            elif name == "os" and field_name not in OS_ALLOWED:
+                findings.append(Finding(rel, ins.line, "forbidden", f"os.{field_name} is not available."))
+            elif name == "string" and field_name == "dump":
                 findings.append(Finding(rel, ins.line, "forbidden", "string.dump is not available."))
             elif name == "io":
-                what = f"io.{field}" if field else "io"
+                what = f"io.{field_name}" if field_name else "io"
                 findings.append(Finding(rel, ins.line, "io", f"reads {what}. Moneten gives scripts an io table without functions, so the value is nil."))
     return findings
+
+
+RUN_TIME = "\0"
+
+
+@dataclass(eq=False)
+class StringValue:
+    """A string the script builds from literals. RUN_TIME stands for a piece known only when the script runs."""
+    line: int
+    text: str
+    callee: str | None = None
+    argument: int | None = None
+    is_piece: bool = False
+
+
+NO_TARGET_OPS = {
+    "SETTABUP", "SETUPVAL", "SETTABLE", "SETI", "SETFIELD", "SETLIST", "JMP", "TEST", "EQ", "LT", "LE", "EQK", "EQI",
+    "LTI", "LEI", "GTI", "GEI", "RETURN", "RETURN0", "RETURN1", "CLOSE", "TBC", "EXTRAARG", "MMBIN", "MMBINI", "MMBINK",
+    "VARARGPREP", "TFORPREP", "TFORLOOP",
+}
+
+
+def string_values(fn: LuaFunction) -> list[StringValue]:
+    """Follows string literals through registers: moves, concatenations, and the call that receives each one."""
+    values: dict[int, StringValue] = {}
+    names: dict[int, str] = {}
+    found: list[StringValue] = []
+    loaded: set[str] = set()
+    for ins in fn.instructions:
+        a = ins.args[0] if ins.args else -1
+        if ins.op == "LOADK" and (text := quoted_text(ins.comment)) is not None:
+            loaded.add(ins.comment)
+            values[a] = StringValue(ins.line, text)
+            found.append(values[a])
+            names.pop(a, None)
+        elif ins.op == "MOVE":
+            values.pop(a, None)
+            if ins.args[1] in values:
+                values[a] = values[ins.args[1]]
+        elif ins.op == "CONCAT":
+            pieces = [values.get(r) for r in range(a, a + ins.args[1])]
+            for piece in pieces:
+                if piece is not None:
+                    piece.is_piece = True
+            joined = StringValue(ins.line, "".join(RUN_TIME if p is None else p.text for p in pieces))
+            for r in range(a, a + ins.args[1]):
+                values.pop(r, None)
+            values[a] = joined
+            found.append(joined)
+        elif ins.op in ("GETFIELD", "GETTABUP", "SELF"):
+            key = re.search(QUOTED + "$", ins.comment)
+            names[a] = unescape(key[1]).decode("utf-8", "replace") if key else ""
+            receiver = values.get(ins.args[1])
+            values.pop(a, None)
+            if ins.op == "SELF":
+                values.pop(a + 1, None)
+                if receiver is not None:
+                    values[a + 1] = receiver
+        elif ins.op in ("CALL", "TAILCALL"):
+            last = a + ins.args[1] - 1 if ins.args[1] > 0 else max(values, default=a)
+            for r in range(a + 1, last + 1):
+                if r in values and values[r].callee is None:
+                    values[r].callee, values[r].argument = names.get(a), r - a
+            for r in [r for r in values if r >= a]:
+                del values[r]
+            for r in [r for r in names if r >= a]:
+                del names[r]
+        elif ins.op not in NO_TARGET_OPS:
+            values.pop(a, None)
+            names.pop(a, None)
+    lines = constant_lines(fn)
+    for printed in fn.constants:
+        if f'"{printed}"' not in loaded:
+            found.append(StringValue(lines.get(printed, fn.first_line), unescape(printed).decode("utf-8", "replace")))
+    return found
 
 
 def constant_lines(fn: LuaFunction) -> dict[str, int]:
@@ -275,33 +427,86 @@ def constant_lines(fn: LuaFunction) -> dict[str, int]:
     return lines
 
 
-URL = re.compile(rb"(https?)://([^/\s\"'?#:<>\\]*)", re.IGNORECASE)
+URL_START = re.compile(r"([a-z][a-z0-9+.-]*)://|^//", re.IGNORECASE)
+AUTHORITY_END = re.compile(r"[/?#\s\"'<>\\\0]")
+HOST = re.compile(r"([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?")
+PATTERN_SYNTAX = re.compile(r"^\^|%[^%\w\s]|%[acdglpsuwx][-*+?]|\[\^|\[%|\.[-*+]|[a-z]\?:|[^%]\$$", re.IGNORECASE)
+PATTERN_FUNCTIONS = {"find", "match", "gmatch", "gsub"}
+ENCODING_FUNCTIONS = {"urlencode"}
+UNCONTACTED_HOSTS = {
+    "www.w3.org": "is the name of an XML namespace",
+    "schemas.xmlsoap.org": "is the name of an XML namespace",
+    "service.moneymoney-app.com": "is the OAuth redirect address that the app catches before any request",
+}
 
 
-def check_constants(rel: str, functions: list[LuaFunction], hosts: set[str]) -> list[Finding]:
+def is_lua_pattern(value: StringValue) -> bool:
+    used_as_pattern = value.callee in PATTERN_FUNCTIONS and value.argument == 2
+    return used_as_pattern or PATTERN_SYNTAX.search(value.text) is not None
+
+
+@dataclass(frozen=True)
+class HostProblem:
+    message: str
+    host_known: bool
+    warning_reason: str | None
+
+
+def host_problems(value: StringValue, hosts: set[str]) -> list[HostProblem]:
+    pattern = is_lua_pattern(value)
+    text = re.sub(r"%(\W)", r"\1", value.text) if pattern else value.text
+    problems = []
+    for start in URL_START.finditer(text):
+        scheme = (start[1] or "https").lower()
+        rest = text[start.end() :]
+        end = AUTHORITY_END.search(rest)
+        authority = rest[: end.start()] if end else rest
+        after = rest[len(authority) : len(authority) + 1]
+        host = re.sub(r":\d*$", "", authority.rsplit("@", 1)[-1]).lower()
+        host_known = HOST.fullmatch(host) is not None
+        if (not start[1] and not host_known) or (not authority and after.isspace()):
+            continue
+        shown = f"{start[0]}{authority}{'..' if after == RUN_TIME else ''}".replace(RUN_TIME, "..")
+        if not host_known:
+            if not authority and after in ("", RUN_TIME):
+                problem = f"{shown} gets its host when the script runs. Write the host into the string so the check can compare it with the manifest."
+            else:
+                problem = f"the host of {shown} cannot be determined. Write the host into the string so the check can compare it with the manifest."
+        elif scheme == "http":
+            problem = f"http://{host} is not HTTPS. Extensions contact hosts only over HTTPS."
+        elif scheme != "https":
+            problem = f"{scheme}://{host} is not HTTPS. Extensions contact hosts only over HTTPS."
+        elif host not in hosts:
+            problem = f"{host} is not in the hosts of manifest.json."
+        else:
+            continue
+        before = text[: start.start()]
+        if pattern:
+            reason = "the string is a Lua pattern, so it matches addresses and is not one"
+        elif value.callee in ENCODING_FUNCTIONS:
+            reason = f"the string goes into MM.{value.callee}, so it is a value inside a request and not an address the script contacts"
+        elif host in UNCONTACTED_HOSTS:
+            reason = f"{host} {UNCONTACTED_HOSTS[host]}"
+        elif re.search(r"xmlns(:[\w.-]+)?\s*=\s*[\"']$", before):
+            reason = "the address is the name of an XML namespace"
+        else:
+            reason = None
+        problems.append(HostProblem(problem, host_known, reason))
+    return problems
+
+
+def check_hosts(rel: str, functions: list[LuaFunction], hosts: set[str]) -> list[Finding]:
     findings = []
     for fn in functions:
-        lines = constant_lines(fn)
-        for printed in fn.constants:
-            line = lines.get(printed, fn.line)
-            value = unescape(printed)
-            for url in URL.finditer(value):
-                scheme, host = url[1].lower(), url[2].decode("utf-8", "replace").lower()
-                if not host and url.end() == len(value):
-                    findings.append(Finding(rel, line, "host", "a string ends in :// and the host is added at run time. Write the host into the string so the check can compare it with the manifest."))
-                elif is_lua_pattern(host) or host in UNCONTACTED_HOSTS:
+        for value in string_values(fn):
+            for problem in host_problems(value, hosts):
+                if value.is_piece and not problem.host_known:
                     continue
-                elif scheme == b"http":
-                    findings.append(Finding(rel, line, "host", f"http://{host} is not HTTPS. Extensions contact hosts only over HTTPS."))
-                elif host not in hosts:
-                    findings.append(Finding(rel, line, "host", f"{host} is not in the hosts of manifest.json."))
-            if len(value) > ENTROPY_MIN_BYTES and entropy(value) > ENTROPY_MAX_BITS:
-                findings.append(Finding(rel, line, "obfuscation", f"a string of {len(value)} bytes with {entropy(value):.2f} bits per byte looks encoded or encrypted. The limit is {ENTROPY_MAX_BITS} above {ENTROPY_MIN_BYTES} bytes."))
-    return findings
-
-
-def is_lua_pattern(host: str) -> bool:
-    return re.fullmatch(r"[a-z0-9.-]+", host) is None
+                if problem.warning_reason is None:
+                    findings.append(Finding(rel, value.line, "host", problem.message))
+                else:
+                    findings.append(Finding(rel, value.line, "host", f"{problem.message} Only a warning, because {problem.warning_reason}.", warning=True))
+    return list(dict.fromkeys(findings))
 
 
 def entropy(data: bytes) -> float:
@@ -309,18 +514,122 @@ def entropy(data: bytes) -> float:
     return -sum(n / len(data) * math.log2(n / len(data)) for n in counts.values())
 
 
-ESCAPED_RUN = re.compile(r"(?:\\(?:x[0-9A-Fa-f]{2}|\d{1,3}))+")
+@dataclass
+class LuaString:
+    line: int
+    escaped_bytes: int
 
 
-def check_source_text(rel: str, text: str) -> list[Finding]:
+def lua_strings(text: str) -> list[LuaString]:
+    """Finds the string literals of a Lua source outside comments and counts their numeric escapes."""
+    strings = []
+    i, line, n = 0, 1, len(text)
+    while i < n:
+        c = text[i]
+        if c == "\n":
+            line += 1
+            i += 1
+        elif text.startswith("--", i):
+            long = re.match(r"--\[(=*)\[", text[i:])
+            close = text.find(f"]{long[1]}]", i) if long else text.find("\n", i)
+            close = n if close < 0 else close
+            line += text.count("\n", i, close)
+            i = close + (len(long[1]) + 2 if long else 0)
+        elif long := re.match(r"\[(=*)\[", text[i : i + 64]):
+            close = text.find(f"]{long[1]}]", i)
+            close = n if close < 0 else close
+            line += text.count("\n", i, close)
+            i = close + len(long[1]) + 2
+        elif c in "\"'":
+            start_line, escaped, i = line, 0, i + 1
+            while i < n and text[i] != c:
+                if text[i] == "\\" and i + 1 < n:
+                    escape = re.match(r"\\(\d{1,3}|x[0-9A-Fa-f]{2}|u\{[0-9A-Fa-f]+\}|z\s*|\r\n|\n|.)", text[i:], re.DOTALL)
+                    if escape[1][0].isdigit() or escape[1][0] in "xu":
+                        escaped += 1
+                    line += escape[0].count("\n")
+                    i += len(escape[0])
+                else:
+                    line += text[i] == "\n"
+                    i += 1
+            strings.append(LuaString(start_line, escaped))
+            i += 1
+        else:
+            i += 1
+    return strings
+
+
+def innermost(functions: list[LuaFunction], line: int) -> LuaFunction:
+    holding = [fn for fn in functions[1:] if fn.first_line <= line <= fn.last_line]
+    return min(holding, key=lambda fn: fn.last_line - fn.first_line, default=functions[0])
+
+
+ENCODED_RUN = re.compile(r"[A-Za-z0-9+/_-]{32,}={0,2}")
+
+
+def encoded_length(text: str) -> int:
+    total = 0
+    for run in ENCODED_RUN.finditer(text.replace(RUN_TIME, " ")):
+        word = run[0]
+        hex_run = re.fullmatch(r"[0-9a-fA-F]+", word) and re.search(r"\d", word) and re.search(r"[a-fA-F]", word)
+        base64_run = all(re.search(p, word) for p in (r"[a-z]", r"[A-Z]", r"\d")) and entropy(word.encode()) > 4.0
+        if hex_run or base64_run:
+            total += len(word)
+    return total
+
+
+def literal_bytes_in_calls(fn: LuaFunction) -> tuple[int, int]:
+    """Counts integer literals passed to calls that take at least MIN_LITERAL_ARGUMENTS of them, as string.char does."""
+    literal: set[int] = set()
+    total, first_line = 0, fn.first_line
+    for ins in fn.instructions:
+        a = ins.args[0] if ins.args else -1
+        if ins.op in ("CALL", "TAILCALL") and ins.args[1] > 0:
+            count = sum(r in literal for r in range(a + 1, a + ins.args[1]))
+            if count >= MIN_LITERAL_ARGUMENTS:
+                first_line = first_line if total else ins.line
+                total += count
+            literal = {r for r in literal if r < a}
+        elif ins.op == "LOADI" and 0 <= ins.args[1] <= 255:
+            literal.add(a)
+        elif ins.op not in NO_TARGET_OPS:
+            literal.discard(a)
+    return total, first_line
+
+
+def check_line_lengths(rel: str, text: str) -> list[Finding]:
+    return [
+        Finding(rel, number, "obfuscation", f"the line has {len(line)} characters. The limit is {MAX_LINE}.")
+        for number, line in enumerate(text.splitlines(), 1)
+        if len(line) > MAX_LINE
+    ]
+
+
+def check_obfuscation(rel: str, text: str, functions: list[LuaFunction]) -> list[Finding]:
     findings = []
-    for number, line in enumerate(text.splitlines(), 1):
-        if len(line) > MAX_LINE:
-            findings.append(Finding(rel, number, "obfuscation", f"the line has {len(line)} characters. The limit is {MAX_LINE}."))
-        for run in ESCAPED_RUN.finditer(line):
-            count = len(re.findall(r"\\(?:x[0-9A-Fa-f]{2}|\d{1,3})", run[0]))
-            if count > MAX_ESCAPED_BYTES:
-                findings.append(Finding(rel, number, "obfuscation", f"a string of {count} escaped bytes. The limit is {MAX_ESCAPED_BYTES}."))
+    escapes: dict[int, list[LuaString]] = {}
+    for string in lua_strings(text):
+        if string.escaped_bytes:
+            escapes.setdefault(id(innermost(functions, string.line)), []).append(string)
+    for fn in functions:
+        where = "the main chunk" if fn is functions[0] else f"the function on lines {fn.first_line} to {fn.last_line}"
+        strings = escapes.get(id(fn), [])
+        if (count := sum(s.escaped_bytes for s in strings)) > MAX_ESCAPED_BYTES:
+            line = max(strings, key=lambda s: s.escaped_bytes).line
+            findings.append(Finding(rel, line, "obfuscation", f"{where} writes {count} bytes as escapes such as \\104 or \\x68. The limit is {MAX_ESCAPED_BYTES} per function."))
+        count, line = literal_bytes_in_calls(fn)
+        if count > MAX_LITERAL_BYTES:
+            findings.append(Finding(rel, line, "obfuscation", f"{where} passes {count} bytes as numbers to calls such as string.char. The limit is {MAX_LITERAL_BYTES} per function."))
+        values = [value for value in string_values(fn) if not value.is_piece]
+        if not values:
+            continue
+        line = max(values, key=lambda v: len(v.text)).line
+        data = "".join(value.text for value in values).replace(RUN_TIME, "")
+        if (count := sum(encoded_length(value.text) for value in values)) > ENCODED_MAX_CHARS:
+            findings.append(Finding(rel, line, "obfuscation", f"{where} holds {count} characters of hex or base64 in its strings. The limit is {ENCODED_MAX_CHARS} per function."))
+        raw = data.encode("utf-8", "replace")
+        if len(raw) > ENTROPY_MIN_BYTES and (bits := entropy(raw)) > ENTROPY_MAX_BITS:
+            findings.append(Finding(rel, line, "obfuscation", f"the strings of {where} hold {len(raw)} bytes with {bits:.2f} bits per byte, which looks encoded or encrypted. The limit is {ENTROPY_MAX_BITS} above {ENTROPY_MIN_BYTES} bytes per function."))
     return findings
 
 
@@ -340,13 +649,14 @@ def check_lua(pkg: Package, manifest: dict, luac: str) -> list[Finding]:
         except UnicodeDecodeError as error:
             findings.append(Finding(rel, data[: error.start].count(b"\n") + 1, "obfuscation", "the file is not UTF-8 text."))
             continue
-        findings += check_source_text(rel, text)
+        findings += check_line_lengths(rel, text)
         functions, error = compile_listing(luac, path)
         if functions is None:
             findings.append(Finding(rel, int(m[1]) if (m := re.search(r":(\d+):", error)) else 0, "syntax", error))
             continue
+        findings += check_obfuscation(rel, text, functions)
         findings += check_globals(rel, functions)
-        findings += check_constants(rel, functions, set(manifest["hosts"]))
+        findings += check_hosts(rel, functions, set(manifest["hosts"]))
     return findings
 
 
@@ -495,7 +805,7 @@ def main(argv: list[str] | None = None) -> int:
         failing = [f for f in shown if f.label not in labels]
     else:
         shown = findings
-        failing = [f for f in findings if not f.label]
+        failing = [f for f in findings if not f.label and not f.warning]
     github = os.environ.get("GITHUB_ACTIONS") == "true"
     for finding in shown:
         print(finding.render(labels))

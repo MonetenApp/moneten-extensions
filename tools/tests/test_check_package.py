@@ -1,8 +1,12 @@
+import base64
+import hashlib
 import json
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 import check_package
 from check_package import check_package as check
@@ -81,9 +85,71 @@ def test_plain_http_and_host_built_at_run_time_fail(catalog, luac):
     assert summary(check(package(catalog), luac)) == [(LUA, line, "host"), (LUA, line + 1, "host")]
 
 
-def test_lua_patterns_and_xml_namespaces_pass(catalog, luac):
-    append_lua(catalog, 'local p = "^https?://([^/]+)"\nlocal q = "www%.bank%.example"\nlocal ns = \'xmlns="http://schemas.xmlsoap.org/soap/envelope/"\'')
+@pytest.mark.parametrize("code", [
+    'local e = _ENV; e.os.execute("ls")',
+    'local k = "lo" .. "ad"; _ENV[k]("x")',
+    'for name, value in pairs(_ENV) do end',
+    'local t = setmetatable({}, {__index = _ENV})',
+])
+def test_env_used_as_a_value_fails(catalog, luac, code):
+    line = append_lua(catalog, code)
+    findings = check(package(catalog), luac)
+    assert summary(findings) == [(LUA, line, "forbidden")]
+    assert findings[0].message.startswith("_ENV is used as a value.")
+
+
+def test_parameter_named_env_fails(catalog, luac):
+    line = append_lua(catalog, "local function f(_ENV) return load end")
+    findings = check(package(catalog), luac)
+    assert summary(findings) == [(LUA, line, "forbidden")]
+    assert findings[0].message.startswith("a local variable or parameter is named _ENV.")
+
+
+def test_global_with_a_long_name_is_a_fixed_global_read(catalog, luac):
+    append_lua(catalog, "ThisGlobalNameIsLongerThanFortyCharactersInTotal = function() end\nThisGlobalNameIsLongerThanFortyCharactersInTotal()")
     assert check(package(catalog), luac) == []
+
+
+@pytest.mark.parametrize("code, message", [
+    ('local u = string.format("https://%s/p", "tracker.example")', "the host of https://%s cannot be determined."),
+    ('local u = "https:/" .. "/" .. "tracker.example" .. "/p"', "tracker.example is not in the hosts of manifest.json."),
+    ('local h = "tracker.example"\nlocal u = "https://" .. h', "tracker.example is not in the hosts of manifest.json."),
+    ('local u = "https://www.bank.example@tracker.example/p"', "tracker.example is not in the hosts of manifest.json."),
+    ('local u = "https://user@tracker.example:443/p"', "tracker.example is not in the hosts of manifest.json."),
+    ('local u = "https://{h}/p"', "the host of https://{h} cannot be determined."),
+    ('local u = "//tracker.example/p"', "tracker.example is not in the hosts of manifest.json."),
+    ('local u = "https://" .. string.reverse("elpmaxe.rekcart")', "https://.. gets its host when the script runs."),
+    ('local s = "https://tracker.example/p"\nlocal t = "^" .. s', "tracker.example is not in the hosts of manifest.json."),
+])
+def test_host_hidden_from_a_plain_literal_fails(catalog, luac, code, message):
+    append_lua(catalog, code)
+    findings = [f for f in check(package(catalog), luac) if not f.warning]
+    assert [f.rule for f in findings] == ["host"]
+    assert findings[0].message.startswith(message)
+
+
+def test_declared_host_built_from_pieces_passes(catalog, luac):
+    append_lua(catalog, 'local u = "https://" .. "www.bank.example" .. "/login"')
+    assert check(package(catalog), luac) == []
+
+
+def test_patterns_and_addresses_that_are_never_contacted_only_warn(catalog):
+    line = append_lua(catalog, "\n".join([
+        'local a = ("x"):match("^https://")',
+        'local b = "^https://([^/]+)"',
+        'local c = MM.urlencode("http://specs.openid.net/auth/2.0")',
+        'local d = \'<e xmlns="http://www.ebs.ie/schema"/>\'',
+        'local e = "www%.bank%.example"',
+        'local f = ("x"):match("^https://www%.bank%.example/")',
+    ]))
+    result = run_cli(catalog)
+    assert result.returncode == 0
+    lines = result.stdout.splitlines()
+    assert [text.split(": ")[0] for text in lines] == [f"{LUA}:{line + n}" for n in range(4)]
+    assert all("Only a warning, because " in text for text in lines)
+    assert "the string is a Lua pattern" in lines[0]
+    assert "MM.urlencode" in lines[2]
+    assert "XML namespace" in lines[3]
 
 
 def test_missing_license_fails(catalog, luac):
@@ -101,6 +167,40 @@ def test_license_outside_the_allowlist_fails(catalog, luac):
 def test_license_text_that_does_not_match_the_manifest_fails(catalog, luac):
     edit_manifest(catalog, license="GPL-3.0-or-later")
     assert summary(check(package(catalog), luac)) == [("extensions/example/LICENSE", 1, "license")]
+
+
+@pytest.mark.parametrize("spdx_id", sorted(p.stem for p in (TOOLS / "tests" / "licenses").glob("*.txt")))
+def test_full_text_of_each_allowed_license_passes(catalog, luac, spdx_id):
+    shutil.copy(TOOLS / "tests" / "licenses" / f"{spdx_id}.txt", package(catalog) / "LICENSE")
+    edit_manifest(catalog, license=spdx_id)
+    assert check(package(catalog), luac) == []
+
+
+def test_mit_with_a_commons_clause_fails(catalog, luac):
+    license = package(catalog) / "LICENSE"
+    license.write_text(license.read_text() + "\nCommons Clause: the Software may not be sold or used commercially.\n")
+    findings = check(package(catalog), luac)
+    assert summary(findings) == [("extensions/example/LICENSE", 1, "license")]
+    assert findings[0].message.startswith("LICENSE is not the text of MIT")
+
+
+def test_restriction_in_a_blank_of_the_template_fails(catalog, luac):
+    license = package(catalog) / "LICENSE"
+    license.write_text(license.read_text().replace("Moneten maintainers", "Moneten maintainers. No commercial use"))
+    findings = check(package(catalog), luac)
+    assert summary(findings) == [("extensions/example/LICENSE", 1, "license")]
+    assert findings[0].message == "LICENSE adds the words 'commercial' to the text of MIT. A catalog package may not restrict its license."
+
+
+def test_proprietary_text_that_quotes_a_license_phrase_fails(catalog, luac):
+    (package(catalog) / "LICENSE").write_text('All rights reserved. The phrase "Permission is hereby granted, free of charge, to any person obtaining a copy" does not apply.\n')
+    assert summary(check(package(catalog), luac)) == [("extensions/example/LICENSE", 1, "license")]
+
+
+def test_file_name_with_spaces_passes(catalog, luac):
+    (package(catalog) / "Example.lua").rename(package(catalog) / "Permanent TSB Business.lua")
+    edit_manifest(catalog, files=["Permanent TSB Business.lua"])
+    assert check(package(catalog), luac) == []
 
 
 def test_long_line_fails(catalog, luac):
@@ -130,6 +230,26 @@ def test_high_entropy_string_fails(catalog, luac):
     assert [(f.path, f.rule) for f in findings] == [(LUA, "obfuscation")]
     assert line <= findings[0].line <= line + 5
     assert "looks encoded or encrypted" in findings[0].message
+
+
+def hex_digest_pieces(count):
+    return [hashlib.sha256(str(n).encode()).hexdigest() for n in range(count)]
+
+
+@pytest.mark.parametrize("code, message", [
+    ('local s = "\\\n' + ("\\104" * 60 + "\\\n") * 4 + '"', "writes 240 bytes as escapes"),
+    ("local s = " + " ..\n".join(['"' + "\\x68" * 50 + '"'] * 5), "writes 250 bytes as escapes"),
+    ("\n".join(f'local {name} = "' + "a\\104" * 70 + '"' for name in "abc"), "writes 210 bytes as escapes"),
+    ("local s = " + " ..\n".join(f'"{piece}"' for piece in hex_digest_pieces(6)), "holds 384 characters of hex or base64"),
+    ("local s = " + " ..\n".join(f'"{piece}"' for piece in [base64.b64encode(hashlib.sha512(str(n).encode()).digest()).decode() for n in range(4)]), "holds 352 characters of hex or base64"),
+    ("local s = " + " ..\n".join("string.char(" + ",".join(str(100 + n) for n in range(30)) + ")" for _ in range(3)), "passes 90 bytes as numbers"),
+])
+def test_encoded_data_spread_over_lines_and_pieces_fails(catalog, luac, code, message):
+    line = append_lua(catalog, code)
+    findings = [f for f in check(package(catalog), luac) if message in f.message]
+    assert [(f.rule, f.warning) for f in findings] == [("obfuscation", False)]
+    assert line <= findings[0].line <= line + code.count("\n")
+    assert run_cli(catalog).returncode == 1
 
 
 def test_real_iban_in_recording_fails(catalog, luac):
