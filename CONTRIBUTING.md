@@ -5,9 +5,9 @@ This page says how to submit an extension and how to run the checks before you o
 ## Add a package
 
 1. Copy `extensions/example` to `extensions/<id>`, where `<id>` is a lowercase name such as `my-bank`.
-2. Replace `Example.lua` with your script. List every Lua file in `files` of `manifest.json`, in load order. A file name may hold single spaces, so a MoneyMoney script such as `Permanent TSB Business.lua` keeps its name. The folder name is the package id and has no spaces.
+2. Replace `Example.lua` with your script. List every Lua file in `files` of `manifest.json`, in load order. A file name holds only letters, digits, underscores, and hyphens before `.lua`, because Moneten refuses other names. Rename a MoneyMoney script such as `Permanent TSB Business.lua` to `Permanent-TSB-Business.lua`.
 3. Fill in the manifest. `schema/manifest.schema.json` describes every field. List every host the script contacts as an exact name.
-4. Put your license text in `LICENSE` and its SPDX identifier in `license`. The allowed licenses are MIT, BSD-2-Clause, BSD-3-Clause, ISC, Apache-2.0, MPL-2.0, LGPL-2.1-or-later, LGPL-3.0-or-later, GPL-2.0-or-later, and GPL-3.0-or-later. The check compares `LICENSE` with the SPDX template in `tools/licenses/`. Fill in the names and years, and add nothing else.
+4. Put your license text in `LICENSE` and its SPDX identifier in `license`. The allowed licenses are MIT, BSD-2-Clause, BSD-3-Clause, ISC, Apache-2.0, MPL-2.0, LGPL-2.1-or-later, LGPL-3.0-or-later, and GPL-3.0-or-later. Moneten does not accept GPL-2.0-or-later yet. The check compares `LICENSE` with the SPDX template in `tools/licenses/`. Fill in the names and years, and add nothing else.
 5. Record one run of the script with `ext record` into `recording/fixture.json`, and save its result as `recording/expected.json`. Replace names, account numbers, and amounts that belong to you. Use the IBAN `DE02120300000000202051` and email addresses on `example.com`.
 6. Open a pull request. Each later change to a file of the package needs a higher `version` in the manifest.
 

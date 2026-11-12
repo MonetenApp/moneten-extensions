@@ -19,9 +19,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import jsonschema
-from referencing import Registry, Resource
+from referencing import Registry
+from referencing.jsonschema import DRAFT202012
 
-from check_package import irregular_files
+from check_package import SchemaValidator, irregular_files
 
 ROOT = Path(__file__).resolve().parent.parent
 PUBLISHED_FILES = ("manifest.json", "README.md", "LICENSE")
@@ -35,10 +36,12 @@ def version_key(version: str) -> tuple[int, ...]:
     return tuple(int(part) for part in version.split("."))
 
 
-def index_validator() -> jsonschema.Draft202012Validator:
+def index_validator() -> jsonschema.protocols.Validator:
     schemas = {name: json.loads((ROOT / "schema" / name).read_text()) for name in ("index.schema.json", "manifest.schema.json")}
-    registry = Registry().with_resources((s["$id"], Resource.from_contents(s)) for s in schemas.values())
-    return jsonschema.Draft202012Validator(schemas["index.schema.json"], registry=registry)
+    # A $ref to a schema that names its $schema switches to the stock validator of that draft, with Python's $.
+    # Without $schema, the referenced manifest schema keeps SchemaValidator.
+    registry = Registry().with_resources((s["$id"], DRAFT202012.create_resource({k: v for k, v in s.items() if k != "$schema"})) for s in schemas.values())
+    return SchemaValidator(schemas["index.schema.json"], registry=registry)
 
 
 def package_entry(folder: Path, status: dict) -> tuple[dict, dict[str, bytes]]:

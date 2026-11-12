@@ -39,7 +39,7 @@
               "additionalProperties": false,
               "required": ["path", "size", "sha256"],
               "properties": {
-                "path": {"description": "A file name that may hold single spaces. The URL of the file percent-encodes them.", "type": "string", "pattern": "^[A-Za-z0-9_.-]+( [A-Za-z0-9_.-]+)*$"},
+                "path": {"description": "A file name of the package folder.", "type": "string", "pattern": "^[A-Za-z0-9_.-]+$"},
                 "size": {"type": "integer", "minimum": 0},
                 "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
               }

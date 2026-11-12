@@ -108,6 +108,16 @@ def load_schema(name: str) -> dict:
     return json.loads((ROOT / "schema" / name).read_text())
 
 
+def ecma_pattern(validator, pattern: str, instance, schema):
+    """A schema pattern is an ECMA-262 regex, whose $ matches only at the end. Python's $ also matches before a final
+    newline, so "1.0\\n" would pass as a version. \\Z is the Python end that ECMA-262 means."""
+    if validator.is_type(instance, "string") and not re.search(re.sub(r"(?<!\\)\$", r"\\Z", pattern), instance):
+        yield jsonschema.ValidationError(f"{instance!r} does not match {pattern!r}")
+
+
+SchemaValidator = jsonschema.validators.extend(jsonschema.Draft202012Validator, {"pattern": ecma_pattern})
+
+
 class DuplicateKey(ValueError):
     pass
 
@@ -131,7 +141,7 @@ def check_manifest(pkg: Package) -> tuple[dict | None, list[Finding]]:
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
         return None, [Finding(pkg.rel("manifest.json"), getattr(error, "lineno", 0), "schema", f"manifest.json is not valid JSON: {error}")]
     findings = []
-    validator = jsonschema.Draft202012Validator(load_schema("manifest.schema.json"))
+    validator = SchemaValidator(load_schema("manifest.schema.json"))
     for error in sorted(validator.iter_errors(manifest), key=lambda e: list(e.absolute_path)):
         where = "/".join(str(part) for part in error.absolute_path) or "(root)"
         findings.append(Finding(pkg.rel("manifest.json"), 1, "schema", f"{where}: {error.message}"))
@@ -783,7 +793,7 @@ def changed_package_ids(root: Path, base: str) -> list[str]:
 
 def check_status(root: Path) -> list[Finding]:
     status = json.loads((root / "status.json").read_text())
-    validator = jsonschema.Draft202012Validator(load_schema("status.schema.json"))
+    validator = SchemaValidator(load_schema("status.schema.json"))
     findings = [Finding("status.json", 1, "schema", error.message) for error in validator.iter_errors(status)]
     if isinstance(status, dict):
         findings += [Finding("status.json", 1, "schema", f"{package_id} has no folder in extensions/.") for package_id in status if not (root / "extensions" / package_id).is_dir()]
