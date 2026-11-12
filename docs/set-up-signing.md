@@ -41,12 +41,12 @@ The workflow `sign` deploys the site with the Pages actions, because a push made
 
 ## Approve the first signing run
 
-Each push to `main` that changes a package, `status.json`, `keys/`, `schema/`, or the signing tools starts the workflow `sign`. Its job `check every package` runs the checks with a read-only token. The job `sign the index and push it to gh-pages` then waits for your approval.
+Each push to `main` that changes a package, `status.json`, `keys/`, `schema/`, or the signing tools starts the workflow `sign`. Its job `check every package` runs the checks with a read-only token. The job `sign the index` then waits for your approval. It also holds only a read-only token.
 
 1. Click **Actions**, then the waiting run of **sign**.
 2. Click **Review deployments**, select **catalog-signing**, and click **Approve and deploy**.
 
-The run builds `index.json`, signs it, checks the signature against `keys/`, and pushes the site to the branch `gh-pages`. The job `deploy to GitHub Pages` then publishes that same tree. If the secret matches neither `keys/current.pub` nor `keys/next.pub`, or if the published index has no valid signature by one of them, the run fails and publishes nothing.
+The run builds a new site from an empty folder, signs `index.json`, and checks the signature against `keys/`. The job `push the signed site to gh-pages` is the only job with a write token. It does not run any script before `tools/push-site.sh`, which pushes exactly that site as one commit, so a file that someone added to `gh-pages` by hand disappears. The job `deploy to GitHub Pages` then publishes the same tree. If the secret matches neither `keys/current.pub` nor `keys/next.pub`, or if the published index has no valid signature by one of them, the run fails and publishes nothing.
 
 `curl -s https://extensions.monetenapp.com/index.json` then shows the signed index.
 

@@ -1,6 +1,7 @@
 import json
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -42,8 +43,15 @@ def repo(tmp_path):
     return work, key, origin
 
 
+def sign(work, key):
+    out = Path(tempfile.mkdtemp())
+    return out, run(work, "bash", "tools/publish.sh", str(key), str(out), check=False)
+
+
 def publish(work, key):
-    return run(work, "bash", "tools/publish.sh", str(key), check=False)
+    """Runs the job sign, then the job push, as sign.yml does."""
+    out, signed = sign(work, key)
+    return signed if signed.returncode else run(work, "bash", "tools/push-site.sh", str(out), check=False)
 
 
 def published_version(origin):
@@ -154,14 +162,27 @@ def test_key_rotation_publishes_at_every_step(repo, tmp_path):
     assert published_version(origin) == 3
 
 
-def test_the_published_tree_is_copied_for_the_pages_deployment(repo, tmp_path):
+def test_gh_pages_holds_exactly_the_signed_site(repo):
     work, key, origin = repo
-    copy = tmp_path / "pages"
-    result = run(work, "bash", "tools/publish.sh", str(key), str(copy), check=False)
-    assert result.returncode == 0, result.stderr
+    out, signed = sign(work, key)
+    assert signed.returncode == 0, signed.stderr
+    assert run(work, "bash", "tools/push-site.sh", str(out), check=False).returncode == 0
     published = run(origin, "git", "ls-tree", "-r", "--name-only", "gh-pages").stdout.split()
-    assert sorted(p.relative_to(copy).as_posix() for p in copy.rglob("*") if p.is_file()) == sorted(published)
-    assert (copy / "index.json").read_text() == run(origin, "git", "show", "gh-pages:index.json").stdout
+    site = out / "site"
+    assert sorted(p.relative_to(site).as_posix() for p in site.rglob("*") if p.is_file()) == sorted(published)
+    assert (site / "index.json").read_text() == run(origin, "git", "show", "gh-pages:index.json").stdout
+
+
+def test_nothing_is_pushed_when_gh_pages_moved_after_the_signing(repo):
+    work, key, origin = repo
+    assert publish(work, key).returncode == 0
+    out, signed = sign(work, key)
+    assert signed.returncode == 0, signed.stderr
+    moved = push_to_gh_pages(work, lambda site: (site / "other.txt").write_text("x\n"))
+    pushed = run(work, "bash", "tools/push-site.sh", str(out), check=False)
+    assert pushed.returncode == 1
+    assert "gh-pages moved" in pushed.stderr
+    assert run(origin, "git", "rev-parse", "gh-pages").stdout.strip() == moved
 
 
 def test_a_file_pushed_to_gh_pages_by_hand_is_gone_after_the_next_publish(repo):
@@ -171,3 +192,16 @@ def test_a_file_pushed_to_gh_pages_by_hand_is_gone_after_the_next_publish(repo):
     assert publish(work, key).returncode == 0
     assert "pwn.html" not in run(origin, "git", "ls-tree", "-r", "--name-only", "gh-pages").stdout.split()
     assert published_version(origin) == 2
+
+
+def test_a_changed_file_under_a_published_version_is_refused_from_a_clean_site(repo):
+    work, key, origin = repo
+    assert publish(work, key).returncode == 0
+    script = work / "extensions" / "example" / "Example.lua"
+    script.write_text(script.read_text() + "-- changed\n")
+    git(work, "commit", "-q", "-am", "change without a new version")
+    git(work, "push", "-q", "origin", "main")
+    result = publish(work, key)
+    assert result.returncode == 1
+    assert "example/1.0/Example.lua is already published with other content" in result.stderr
+    assert published_version(origin) == 1

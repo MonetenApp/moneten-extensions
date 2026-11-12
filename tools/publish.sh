@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Checks that index.json on gh-pages is signed by keys/current.pub or keys/next.pub,
-# builds and signs the next index, checks its signature against the same keys,
-# and pushes the site to the gh-pages branch of origin. With PAGES_DIR, it also writes the
-# pushed tree there, for the Pages deployment.
-# Usage: tools/publish.sh KEY_FILE [PAGES_DIR]
+# builds and signs the next index into a clean site, and checks its signature against the
+# same keys. Writes the site to OUT_DIR/site and the gh-pages commit it builds on to
+# OUT_DIR/parent, empty for the first site. tools/push-site.sh pushes it. Needs no write access.
+# Usage: tools/publish.sh KEY_FILE OUT_DIR
 set -euo pipefail
 key="$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
-pages="${2:+$(mkdir -p "$2" && cd "$2" && pwd)}"
+out="$(mkdir -p "$2" && cd "$2" && pwd)"
 cd "$(dirname "$0")/.."
 
 for public in keys/current.pub keys/next.pub; do
@@ -46,41 +46,40 @@ index_version() {
 	python3 -c 'import json, sys; v = json.load(open(sys.argv[1]))["version"]; assert type(v) is int; print(v)' "$1"
 }
 
-site="$(mktemp -d)/site"
+old="$(mktemp -d)/old"
+parent=""
 published=0
 status=0
 git ls-remote -q --exit-code origin refs/heads/gh-pages >/dev/null || status=$?
 if [[ $status -eq 0 ]]; then
 	git fetch -q --depth 1 origin gh-pages
-	git worktree add -q --detach "$site" FETCH_HEAD
-	trap 'git worktree remove --force "$site"' EXIT
-	links="$(links_in "$site")"
+	parent="$(git rev-parse FETCH_HEAD)"
+	git worktree add -q --detach "$old" "$parent"
+	trap 'git worktree remove --force "$old"' EXIT
+	links="$(links_in "$old")"
 	if [[ -n "$links" ]]; then
-		echo "gh-pages holds symbolic links or submodules, which this run would publish again. Nothing was published:" >&2
+		echo "gh-pages holds symbolic links or submodules. Nothing was published:" >&2
 		echo "$links" >&2
 		exit 1
 	fi
-	if ! published="$(index_version "$site/index.json" 2>/dev/null)"; then
+	if ! published="$(index_version "$old/index.json" 2>/dev/null)"; then
 		echo "gh-pages has no readable index.json, so the published version is unknown. Nothing was published." >&2
 		exit 1
 	fi
-	if ! signed_by_a_catalog_key "$site"; then
+	if ! signed_by_a_catalog_key "$old"; then
 		echo "index.json on gh-pages has no valid signature by keys/current.pub or keys/next.pub, so its version and packages cannot be trusted. Nothing was published." >&2
 		exit 1
 	fi
-elif [[ $status -eq 2 ]]; then
-	git worktree add -q --orphan -b "publish-$$" "$site"
-	trap 'git worktree remove --force "$site"' EXIT
-else
+elif [[ $status -ne 2 ]]; then
 	echo "Cannot read the branch gh-pages of origin, so the published version is unknown. Nothing was published." >&2
 	exit 1
 fi
 
-previous=""
-if [[ $status -eq 0 ]]; then
-	previous="$site/index.json"
-fi
-python3 tools/build_index.py --out "$site" ${previous:+--previous "$previous"} --key "$key"
+# The site starts empty, so a file that someone pushed to gh-pages by hand is not published again.
+site="$out/site"
+rm -rf "$site"
+mkdir "$site"
+python3 tools/build_index.py --out "$site" ${parent:+--previous "$old/index.json"} --key "$key"
 version="$(index_version "$site/index.json")"
 if [[ $version -le $published ]]; then
 	echo "The new index has version $version, but version $published is already published. Nothing was published." >&2
@@ -91,15 +90,9 @@ if ! signed_by_a_catalog_key "$site"; then
 	exit 1
 fi
 
-mkdir -p "$site/schema"
+mkdir "$site/schema"
 cp schema/*.json "$site/schema/"
 echo extensions.monetenapp.com >"$site/CNAME"
 touch "$site/.nojekyll"
-git -C "$site" add -A
-git -C "$site" -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-	commit -q -m "Publish index $version from $(git rev-parse --short HEAD)"
-git -C "$site" push -q origin HEAD:refs/heads/gh-pages
-if [[ -n "$pages" ]]; then
-	git -C "$site" archive HEAD | tar -x -C "$pages"
-fi
-echo "Published index $version."
+echo "$parent" >"$out/parent"
+echo "Signed index $version in $site."

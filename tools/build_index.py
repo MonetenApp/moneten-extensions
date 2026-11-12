@@ -79,10 +79,11 @@ def build(out: Path, previous: Path | None, published: str, root: Path = ROOT) -
             raise BuildError(f"{entry['id']} has version {version}, but {published_versions[entry['id']]} is already published. A package version never goes back.")
         entries.append(entry)
         for name, data in contents.items():
-            path = out / entry["id"] / entry["manifest"]["version"] / name
-            if path.exists() and path.read_bytes() != data:
-                raise BuildError(f"{path.relative_to(out)} is already published with other content. Raise the version of {entry['id']}.")
-            files[path] = data
+            relative = Path(entry["id"]) / version / name
+            old_file = previous.parent / relative if previous else None
+            if old_file is not None and old_file.exists() and old_file.read_bytes() != data:
+                raise BuildError(f"{relative.as_posix()} is already published with other content. Raise the version of {entry['id']}.")
+            files[out / relative] = data
 
     index = {"formatVersion": 1, "version": old["version"] + 1, "published": published, "extensions": entries}
     errors = [f"{'/'.join(map(str, e.absolute_path))}: {e.message}" for e in index_validator().iter_errors(index)]
@@ -105,7 +106,7 @@ def sign(out: Path, key: Path) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--out", type=Path, required=True, help="the published site folder")
-    parser.add_argument("--previous", type=Path, help="the index published before; its version plus 1 is the new version")
+    parser.add_argument("--previous", type=Path, help="the index published before, in its site folder; its version plus 1 is the new version")
     parser.add_argument("--key", type=Path, help="the Ed25519 private key in PEM")
     parser.add_argument("--published", default=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
     parser.add_argument("--root", type=Path, default=ROOT, help="the catalog repository; default this checkout")
