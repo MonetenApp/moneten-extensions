@@ -1,0 +1,21 @@
+{
+  "id": "example",
+  "name": "Example Bank",
+  "version": "1.0",
+  "description": "Fetches balances and transactions from the made-up Example Bank.",
+  "files": ["Example.lua"],
+  "hosts": ["api.bank.example", "www.bank.example"],
+  "services": [
+    {
+      "name": "Example Bank",
+      "login": [
+        {"label": "Username"},
+        {"label": "Password", "secret": true}
+      ]
+    }
+  ],
+  "kinds": ["balances", "transactions"],
+  "apiVersion": 1,
+  "license": "MIT",
+  "maintainer": {"name": "Moneten maintainers", "github": "alexander-schneider"}
+}

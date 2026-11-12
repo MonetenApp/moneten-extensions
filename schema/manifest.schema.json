@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://extensions.monetenapp.com/schema/manifest.schema.json",
+  "title": "Moneten extension manifest",
+  "description": "The manifest.json of a catalog package. Moneten lets the package contact only the hosts listed here and asks for exactly the login fields listed here.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "name", "version", "description", "files", "hosts", "services", "kinds", "apiVersion", "license", "maintainer"],
+  "properties": {
+    "id": {
+      "description": "The name of the package folder under extensions/. It never changes.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "maxLength": 64
+    },
+    "name": {
+      "description": "The name that the Extensions window shows.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 60
+    },
+    "version": {
+      "description": "The package version, such as 2.31. Every change to a file of the package needs a higher version.",
+      "type": "string",
+      "pattern": "^[0-9]+(\\.[0-9]+){0,2}$"
+    },
+    "description": {
+      "description": "One sentence that says what the extension fetches.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "files": {
+      "description": "The Lua files of the package in load order.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^[A-Za-z0-9_-]+\\.lua$"}
+    },
+    "hosts": {
+      "description": "Every host the extension contacts, as an exact lowercase name. No wildcards, ports, schemes, or IP addresses.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 253,
+        "pattern": "^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?$"
+      }
+    },
+    "services": {
+      "description": "The services that the script registers in WebBanking{services=...}, each with the labels of its login fields in the order the script receives them.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "login"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1, "maxLength": 60},
+          "login": {
+            "description": "At most four fields. A field with secret true is typed without showing the characters.",
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["label"],
+              "properties": {
+                "label": {"type": "string", "minLength": 1, "maxLength": 40},
+                "secret": {"type": "boolean", "default": false}
+              }
+            }
+          }
+        }
+      }
+    },
+    "kinds": {
+      "description": "The kinds of data the extension fetches.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"enum": ["balances", "transactions", "securities", "statements"]}
+    },
+    "apiVersion": {
+      "description": "The lowest value of MM.apiVersion the extension needs.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "license": {
+      "description": "The SPDX identifier of the license in the LICENSE file. Only GPL-compatible open source licenses are allowed.",
+      "enum": ["MIT", "BSD-2-Clause", "BSD-3-Clause", "ISC", "Apache-2.0", "MPL-2.0", "LGPL-2.1-or-later", "LGPL-3.0-or-later", "GPL-3.0-or-later"]
+    },
+    "maintainer": {
+      "description": "The person who answers failure reports for the package.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "github"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1, "maxLength": 100},
+        "github": {
+          "description": "The GitHub login, without @.",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9](-?[A-Za-z0-9]){0,38}$"
+        }
+      }
+    }
+  }
+}
