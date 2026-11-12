@@ -3,6 +3,8 @@ import json
 import urllib.parse
 import urllib.request
 
+import pytest
+
 import fresh_labels
 
 REPOSITORY = "MonetenApp/moneten-extensions"
@@ -10,8 +12,8 @@ A, X = "a" * 40, "b" * 40
 PERMISSIONS = {"maintainer": "admin", "helper": "write", "triager": "read", "contributor": "read"}
 
 
-def review(user, state, commit, at):
-    return {"user": {"login": user}, "state": state, "commit_id": commit, "submitted_at": at}
+def review(user, state, commit, at, body=""):
+    return {"user": {"login": user}, "state": state, "commit_id": commit, "submitted_at": at, "body": body}
 
 
 class FakeGitHub:
@@ -42,10 +44,10 @@ class FakeResponse(io.BytesIO):
         self.headers = {}
 
 
-def signed_off(monkeypatch, capsys, github):
+def signed_off(monkeypatch, capsys, github, event_head=X):
     monkeypatch.setenv("GITHUB_TOKEN", "token")
     monkeypatch.setattr(urllib.request, "urlopen", github)
-    code = fresh_labels.main([REPOSITORY, "7", X])
+    code = fresh_labels.main([REPOSITORY, "7", event_head])
     return code, capsys.readouterr()
 
 
@@ -80,14 +82,32 @@ def test_an_approval_that_the_maintainer_took_back_does_not_count(monkeypatch, c
 
 
 def test_a_maintainer_author_binds_the_label_to_the_head_with_a_comment_review(monkeypatch, capsys):
-    github = FakeGitHub([review("maintainer", "COMMENTED", X, "2026-11-12T10:16:00Z")], author="maintainer", head_repository=REPOSITORY)
+    github = FakeGitHub([review("maintainer", "COMMENTED", X, "2026-11-12T10:16:00Z", "sign-off: I read the hosts.")], author="maintainer", head_repository=REPOSITORY)
     code, out = signed_off(monkeypatch, capsys, github)
     assert (code, out.out) == (0, "hosts-approved\n")
 
 
 def test_a_label_on_a_maintainer_pull_request_does_not_survive_a_push(monkeypatch, capsys):
     # The author labels A, reviews A, and pushes X with a new host.
-    github = FakeGitHub([review("maintainer", "COMMENTED", A, "2026-11-12T10:16:00Z")], author="maintainer", head_repository=REPOSITORY)
+    github = FakeGitHub([review("maintainer", "COMMENTED", A, "2026-11-12T10:16:00Z", "sign-off")], author="maintainer", head_repository=REPOSITORY)
     code, out = signed_off(monkeypatch, capsys, github)
     assert (code, out.out) == (0, "\n")
     assert "hosts-approved" in out.err
+
+
+def test_a_reply_to_a_line_comment_is_no_sign_off(monkeypatch, capsys):
+    # GitHub files a reply to a line comment as a review with state COMMENTED and an empty body.
+    github = FakeGitHub([review("maintainer", "COMMENTED", X, "2026-11-12T10:16:00Z")], author="maintainer", head_repository=REPOSITORY)
+    code, out = signed_off(monkeypatch, capsys, github)
+    assert (code, out.out) == (0, "\n")
+
+
+@pytest.mark.parametrize("on_a", [
+    review("maintainer", "COMMENTED", A, "2026-11-12T10:16:00Z", "sign-off"),
+    review("helper", "APPROVED", A, "2026-11-12T10:16:00Z"),
+])
+def test_no_review_counts_when_the_event_is_for_an_older_head(monkeypatch, capsys, on_a):
+    # The run was started for A, but the pull request already moved to X.
+    github = FakeGitHub([on_a], author="maintainer", head_repository=REPOSITORY)
+    code, out = signed_off(monkeypatch, capsys, github, event_head=A)
+    assert (code, out.out) == (0, "\n")
