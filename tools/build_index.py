@@ -29,6 +29,10 @@ class BuildError(Exception):
     pass
 
 
+def version_key(version: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in version.split("."))
+
+
 def index_validator() -> jsonschema.Draft202012Validator:
     schemas = {name: json.loads((ROOT / "schema" / name).read_text()) for name in ("index.schema.json", "manifest.schema.json")}
     registry = Registry().with_resources((s["$id"], Resource.from_contents(s)) for s in schemas.values())
@@ -57,9 +61,13 @@ def build(out: Path, previous: Path | None, published: str, root: Path = ROOT) -
     if missing:
         raise BuildError(f"published packages have no folder: {', '.join(missing)}. Mark them withdrawn in status.json instead of deleting them.")
 
+    published_versions = {e["id"]: e["manifest"]["version"] for e in old["extensions"]}
     entries, files = [], {}
     for folder in folders:
         entry, contents = package_entry(folder, status)
+        version = entry["manifest"]["version"]
+        if entry["id"] in published_versions and version_key(version) < version_key(published_versions[entry["id"]]):
+            raise BuildError(f"{entry['id']} has version {version}, but {published_versions[entry['id']]} is already published. A package version never goes back.")
         entries.append(entry)
         for name, data in contents.items():
             path = out / entry["id"] / entry["manifest"]["version"] / name

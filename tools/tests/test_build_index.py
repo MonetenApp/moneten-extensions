@@ -100,3 +100,35 @@ def test_deleted_package_is_refused(catalog, tmp_path):
     result = build(catalog, out, "--previous", str(out / "index.json"))
     assert result.returncode == 1
     assert "published packages have no folder: example" in result.stderr
+
+
+def set_version(catalog, version):
+    path = catalog / "extensions" / "example" / "manifest.json"
+    manifest = json.loads(path.read_text())
+    manifest["version"] = version
+    path.write_text(json.dumps(manifest, indent=2) + "\n")
+
+
+def test_lower_version_than_the_published_one_is_refused(catalog, tmp_path):
+    out = tmp_path / "site"
+    set_version(catalog, "1.1")
+    assert build(catalog, out).returncode == 0
+    set_version(catalog, "1.0")
+    result = build(catalog, out, "--previous", str(out / "index.json"))
+    assert result.returncode == 1
+    assert "example has version 1.0, but 1.1 is already published" in result.stderr
+    assert json.loads((out / "index.json").read_text())["version"] == 1
+
+
+def test_file_name_with_spaces_is_published_under_that_name(catalog, tmp_path):
+    folder = catalog / "extensions" / "example"
+    (folder / "Example.lua").rename(folder / "Permanent TSB Business.lua")
+    manifest = json.loads((folder / "manifest.json").read_text())
+    manifest["files"] = ["Permanent TSB Business.lua"]
+    (folder / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    out = tmp_path / "site"
+    assert build(catalog, out).returncode == 0
+    entry = json.loads((out / "index.json").read_text())["extensions"][0]
+    script = (folder / "Permanent TSB Business.lua").read_bytes()
+    assert {"path": "Permanent TSB Business.lua", "size": len(script), "sha256": hashlib.sha256(script).hexdigest()} in entry["files"]
+    assert (out / "example" / "1.0" / "Permanent TSB Business.lua").read_bytes() == script

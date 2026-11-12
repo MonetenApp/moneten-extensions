@@ -13,26 +13,52 @@ for public in keys/current.pub keys/next.pub; do
 	fi
 done
 
+git fetch -q origin main
+if [[ "$(git rev-parse HEAD)" != "$(git rev-parse FETCH_HEAD)" ]]; then
+	echo "HEAD $(git rev-parse --short HEAD) is not the newest main $(git rev-parse --short FETCH_HEAD). An older commit would publish older packages under a new index version, so only the newest main is signed." >&2
+	exit 1
+fi
+
+index_version() {
+	python3 -c 'import json, sys; v = json.load(open(sys.argv[1]))["version"]; assert type(v) is int; print(v)' "$1"
+}
+
 site="$(mktemp -d)/site"
-if git fetch -q --depth 1 origin gh-pages 2>/dev/null; then
+published=0
+status=0
+git ls-remote -q --exit-code origin refs/heads/gh-pages >/dev/null || status=$?
+if [[ $status -eq 0 ]]; then
+	git fetch -q --depth 1 origin gh-pages
 	git worktree add -q --detach "$site" FETCH_HEAD
-else
+	if ! published="$(index_version "$site/index.json" 2>/dev/null)"; then
+		git worktree remove --force "$site"
+		echo "gh-pages has no readable index.json, so the published version is unknown. Nothing was published." >&2
+		exit 1
+	fi
+elif [[ $status -eq 2 ]]; then
 	git worktree add -q --orphan -b "publish-$$" "$site"
+else
+	echo "Cannot read the branch gh-pages of origin, so the published version is unknown. Nothing was published." >&2
+	exit 1
 fi
 trap 'git worktree remove --force "$site"' EXIT
 
 previous=""
-if [[ -f "$site/index.json" ]]; then
+if [[ $status -eq 0 ]]; then
 	previous="$site/index.json"
 fi
 python3 tools/build_index.py --out "$site" ${previous:+--previous "$previous"} --key "$key"
+version="$(index_version "$site/index.json")"
+if [[ $version -le $published ]]; then
+	echo "The new index has version $version, but version $published is already published. Nothing was published." >&2
+	exit 1
+fi
 openssl pkeyutl -verify -pubin -inkey keys/current.pub -rawin -in "$site/index.json" -sigfile "$site/index.json.sig"
 
 mkdir -p "$site/schema"
 cp schema/*.json "$site/schema/"
 echo extensions.monetenapp.com >"$site/CNAME"
 touch "$site/.nojekyll"
-version="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["version"])' "$site/index.json")"
 git -C "$site" add -A
 git -C "$site" -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
 	commit -q -m "Publish index $version from $(git rev-parse --short HEAD)"
