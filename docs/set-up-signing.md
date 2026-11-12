@@ -35,7 +35,7 @@ Each push to `main` that changes a package, `status.json`, `keys/`, `schema/`, o
 1. Click **Actions**, then the waiting run of **sign**.
 2. Click **Review deployments**, select **catalog-signing**, and click **Approve and deploy**.
 
-The run checks every package again, builds `index.json`, signs it, checks the signature against `keys/current.pub`, and pushes the site to the branch `gh-pages`. If the secret does not match `keys/current.pub`, the run fails and publishes nothing.
+The run checks every package again, builds `index.json`, signs it, checks the signature against `keys/`, and pushes the site to the branch `gh-pages`. If the secret matches neither `keys/current.pub` nor `keys/next.pub`, or if the published index has no valid signature by one of them, the run fails and publishes nothing.
 
 ## Serve the site from extensions.monetenapp.com
 
@@ -79,9 +79,12 @@ A verified domain stops another GitHub account from serving a site at `extension
 
 ## Move to the next key
 
-1. Make a new key pair as in the first section. It becomes the new next key.
-2. In a pull request, replace `keys/current.pub` with the old `keys/next.pub`, and `keys/next.pub` with the new public key.
-3. In the environment `catalog-signing`, replace the secret `INDEX_SIGNING_KEY` with the content of the old `next.pem`.
-4. Merge the pull request and approve the signing run.
+Each signing run first checks that the published `index.json` is signed by `keys/current.pub` or `keys/next.pub`. So the published index must carry the signature of the next key before `keys/` drops the current key.
 
-Apps that ship the old pair accept the new index, because it is signed with their next key. A Moneten release then ships the new pair.
+1. Make a new key pair as in the first section. It becomes the new next key.
+2. In the environment `catalog-signing`, replace the secret `INDEX_SIGNING_KEY` with the content of `next.pem`.
+3. Click **Actions**, then **sign**, then **Run workflow** on `main`. Approve the run. It publishes the index signed with the next key.
+4. In a pull request, replace `keys/current.pub` with the old `keys/next.pub`, and `keys/next.pub` with the new public key.
+5. Merge the pull request and approve the signing run.
+
+Apps that ship the old pair accept the index after step 3, because it is signed with their next key. A Moneten release then ships the new pair.

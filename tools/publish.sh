@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Builds and signs the index, checks the signature against keys/current.pub,
+# Checks that index.json on gh-pages is signed by keys/current.pub or keys/next.pub,
+# builds and signs the next index, checks its signature against the same keys,
 # and pushes the site to the gh-pages branch of origin.
 # Usage: tools/publish.sh KEY_FILE
 set -euo pipefail
@@ -13,7 +14,20 @@ for public in keys/current.pub keys/next.pub; do
 	fi
 done
 
-links="$(git ls-files -s | awk '$1 == "120000" || $1 == "160000" { sub(/^[^\t]*\t/, ""); print }')"
+links_in() {
+	git -C "$1" ls-files -s | awk '$1 == "120000" || $1 == "160000" { sub(/^[^\t]*\t/, ""); print }'
+}
+
+signed_by_a_catalog_key() {
+	for public in keys/current.pub keys/next.pub; do
+		if openssl pkeyutl -verify -pubin -inkey "$public" -rawin -in "$1/index.json" -sigfile "$1/index.json.sig" >/dev/null 2>&1; then
+			return 0
+		fi
+	done
+	return 1
+}
+
+links="$(links_in .)"
 if [[ -n "$links" ]]; then
 	echo "The repository holds symbolic links or submodules, which could publish files from outside it. Nothing was published:" >&2
 	echo "$links" >&2
@@ -37,18 +51,28 @@ git ls-remote -q --exit-code origin refs/heads/gh-pages >/dev/null || status=$?
 if [[ $status -eq 0 ]]; then
 	git fetch -q --depth 1 origin gh-pages
 	git worktree add -q --detach "$site" FETCH_HEAD
+	trap 'git worktree remove --force "$site"' EXIT
+	links="$(links_in "$site")"
+	if [[ -n "$links" ]]; then
+		echo "gh-pages holds symbolic links or submodules, which this run would publish again. Nothing was published:" >&2
+		echo "$links" >&2
+		exit 1
+	fi
 	if ! published="$(index_version "$site/index.json" 2>/dev/null)"; then
-		git worktree remove --force "$site"
 		echo "gh-pages has no readable index.json, so the published version is unknown. Nothing was published." >&2
+		exit 1
+	fi
+	if ! signed_by_a_catalog_key "$site"; then
+		echo "index.json on gh-pages has no valid signature by keys/current.pub or keys/next.pub, so its version and packages cannot be trusted. Nothing was published." >&2
 		exit 1
 	fi
 elif [[ $status -eq 2 ]]; then
 	git worktree add -q --orphan -b "publish-$$" "$site"
+	trap 'git worktree remove --force "$site"' EXIT
 else
 	echo "Cannot read the branch gh-pages of origin, so the published version is unknown. Nothing was published." >&2
 	exit 1
 fi
-trap 'git worktree remove --force "$site"' EXIT
 
 previous=""
 if [[ $status -eq 0 ]]; then
@@ -60,7 +84,10 @@ if [[ $version -le $published ]]; then
 	echo "The new index has version $version, but version $published is already published. Nothing was published." >&2
 	exit 1
 fi
-openssl pkeyutl -verify -pubin -inkey keys/current.pub -rawin -in "$site/index.json" -sigfile "$site/index.json.sig"
+if ! signed_by_a_catalog_key "$site"; then
+	echo "The key file signs with neither keys/current.pub nor keys/next.pub. Nothing was published. See docs/set-up-signing.md." >&2
+	exit 1
+fi
 
 mkdir -p "$site/schema"
 cp schema/*.json "$site/schema/"

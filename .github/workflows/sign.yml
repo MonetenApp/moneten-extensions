@@ -11,6 +11,8 @@ on:
       - tools/build_index.py
       - tools/publish.sh
       - .github/workflows/sign.yml
+  # The key rotation in docs/set-up-signing.md signs once with the next key before keys/ changes.
+  workflow_dispatch:
 
 permissions:
   contents: write
