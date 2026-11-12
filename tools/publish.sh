@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Checks that index.json on gh-pages is signed by keys/current.pub or keys/next.pub,
 # builds and signs the next index, checks its signature against the same keys,
-# and pushes the site to the gh-pages branch of origin.
-# Usage: tools/publish.sh KEY_FILE
+# and pushes the site to the gh-pages branch of origin. With PAGES_DIR, it also writes the
+# pushed tree there, for the Pages deployment.
+# Usage: tools/publish.sh KEY_FILE [PAGES_DIR]
 set -euo pipefail
 key="$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
+pages="${2:+$(mkdir -p "$2" && cd "$2" && pwd)}"
 cd "$(dirname "$0")/.."
 
 for public in keys/current.pub keys/next.pub; do
@@ -97,4 +99,7 @@ git -C "$site" add -A
 git -C "$site" -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
 	commit -q -m "Publish index $version from $(git rev-parse --short HEAD)"
 git -C "$site" push -q origin HEAD:refs/heads/gh-pages
+if [[ -n "$pages" ]]; then
+	git -C "$site" archive HEAD | tar -x -C "$pages"
+fi
 echo "Published index $version."

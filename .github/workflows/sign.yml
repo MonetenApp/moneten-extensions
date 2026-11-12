@@ -9,27 +9,45 @@ on:
       - keys/**
       - schema/**
       - tools/build_index.py
+      - tools/check_package.py
       - tools/publish.sh
       - .github/workflows/sign.yml
   # The key rotation in docs/set-up-signing.md signs once with the next key before keys/ changes.
   workflow_dispatch:
 
-permissions:
-  contents: write
+permissions: {}
 
 concurrency:
   group: catalog-signing
   cancel-in-progress: false
 
 jobs:
-  sign:
-    name: sign and publish the index
+  check:
+    name: check every package
     if: github.repository == 'MonetenApp/moneten-extensions' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - run: tools/setup.sh
+      - run: tools/check-all.sh
+
+  sign:
+    name: sign the index and push it to gh-pages
+    needs: check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
     environment:
       name: catalog-signing
-      url: https://extensions.monetenapp.com/index.json
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -39,9 +57,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: tools/setup.sh
-      - run: tools/check-all.sh
-
-      - name: Build, sign, verify, and publish the index
+      - name: Build, sign, verify, and push the index
         env:
           INDEX_SIGNING_KEY: ${{ secrets.INDEX_SIGNING_KEY }}
           PUSH_TOKEN: ${{ github.token }}
@@ -57,4 +73,23 @@ jobs:
           export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0="http.https://github.com/.extraheader"
           GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$PUSH_TOKEN" | base64 -w0)"
           export GIT_CONFIG_VALUE_0
-          tools/publish.sh "$key"
+          tools/publish.sh "$key" "$RUNNER_TEMP/pages"
+      # A push made with the workflow token starts no Pages build, so the deploy job publishes this tree.
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: ${{ runner.temp }}/pages
+
+  deploy:
+    name: deploy to GitHub Pages
+    needs: sign
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
