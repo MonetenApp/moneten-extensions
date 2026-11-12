@@ -32,6 +32,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
@@ -41,6 +42,7 @@ jobs:
       - name: Build, sign, verify, and publish the index
         env:
           INDEX_SIGNING_KEY: ${{ secrets.INDEX_SIGNING_KEY }}
+          PUSH_TOKEN: ${{ github.token }}
         run: |
           if [[ -z "$INDEX_SIGNING_KEY" ]]; then
             echo "::error::The environment catalog-signing has no secret INDEX_SIGNING_KEY. See docs/set-up-signing.md."
@@ -49,4 +51,8 @@ jobs:
           key="$RUNNER_TEMP/index-signing-key.pem"
           trap 'rm -f "$key"' EXIT
           (umask 077 && printf '%s\n' "$INDEX_SIGNING_KEY" > "$key")
+          # The checkout keeps no token, so only this step can push to gh-pages.
+          export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0="http.https://github.com/.extraheader"
+          GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$PUSH_TOKEN" | base64 -w0)"
+          export GIT_CONFIG_VALUE_0
           tools/publish.sh "$key"

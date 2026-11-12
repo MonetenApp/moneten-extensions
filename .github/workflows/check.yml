@@ -51,6 +51,11 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+      issues: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -66,44 +71,45 @@ jobs:
           path: .cache
           key: lua-${{ runner.os }}-${{ hashFiles('tools/setup.sh') }}
       - run: tools/setup.sh
+      - name: Keep only the labels set after the newest push
+        id: labels
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: echo "fresh=$(python3 tools/fresh_labels.py "$REPOSITORY" "$NUMBER" "$HEAD")" >> "$GITHUB_OUTPUT"
       - name: Require the labels hosts-approved and io-acknowledged where needed
-        run: python3 tools/check_package.py --sign-off --base "$BASE" --changed --labels "$LABELS"
+        env:
+          FRESH_LABELS: ${{ steps.labels.outputs.fresh }}
+        run: python3 tools/check_package.py --sign-off --base "$BASE" --changed --labels "$FRESH_LABELS"
 
   ext-test:
     name: ext test
     needs: checks
-    runs-on: ${{ needs.checks.outputs.ext-commit != '' && 'macos-15' || 'ubuntu-24.04' }}
+    # Skipped, and shown as skipped, until tools/ext.lock pins a commit of the app repository that has ext.
+    if: needs.checks.outputs.ext-commit != ''
+    runs-on: macos-15
     timeout-minutes: 30
-    env:
-      EXT_COMMIT: ${{ needs.checks.outputs.ext-commit }}
     steps:
-      - name: Skip while tools/ext.lock pins no commit
-        if: env.EXT_COMMIT == ''
-        run: echo "::notice title=ext test skipped::tools/ext.lock pins no commit of ${{ needs.checks.outputs.ext-repository }}, because the ext tool does not exist there yet. No recording was replayed."
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: env.EXT_COMMIT != ''
         with:
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: env.EXT_COMMIT != ''
         with:
           repository: ${{ needs.checks.outputs.ext-repository }}
-          ref: ${{ env.EXT_COMMIT }}
+          ref: ${{ needs.checks.outputs.ext-commit }}
           path: .cache/moneten
           persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        if: env.EXT_COMMIT != ''
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: tools/requirements.txt
-      - if: env.EXT_COMMIT != ''
-        run: tools/setup.sh
+      - run: tools/setup.sh
       - name: Build ext from the pinned commit
-        if: env.EXT_COMMIT != ''
         run: swift build --disable-keychain -c release --product ext --package-path .cache/moneten
-      - if: env.EXT_COMMIT != ''
-        run: tools/check-all.sh
+      - run: tools/check-all.sh
         env:
           EXT: .cache/moneten/.build/release/ext

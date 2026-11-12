@@ -24,4 +24,4 @@ if [[ ! -x "$luac" ]]; then
 fi
 "$luac" -v
 
-python3 -m pip install --quiet --requirement "$root/tools/requirements.txt"
+python3 -m pip install --quiet --require-hashes --only-binary :all: --requirement "$root/tools/requirements.txt"
