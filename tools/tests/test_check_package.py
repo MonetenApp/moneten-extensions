@@ -69,6 +69,25 @@ def test_string_dump_fails(catalog, luac):
     assert summary(check(package(catalog), luac)) == [(LUA, line, "forbidden"), (LUA, line + 1, "forbidden")]
 
 
+@pytest.mark.parametrize("code", [
+    "local s = string\nlocal n = 1\nlocal d = s.dump",
+    "local d = (function() return string end)().dump",
+    'local d = getmetatable("").__index.dump',
+])
+def test_string_dump_through_another_name_fails(catalog, luac, code):
+    line = append_lua(catalog, code) + code.count("\n")
+    findings = check(package(catalog), luac)
+    assert summary(findings) == [(LUA, line, "forbidden")]
+    assert "dump" in findings[0].message
+
+
+def test_rawget_of_g_with_a_computed_key_fails(catalog, luac):
+    line = append_lua(catalog, 'local f = rawget(_G, "lo" .. "ad")')
+    findings = check(package(catalog), luac)
+    assert summary(findings) == [(LUA, line, "forbidden")]
+    assert findings[0].message.startswith("_G is used other than")
+
+
 def test_io_open_guard_needs_a_label_and_is_no_error(catalog, luac):
     line = append_lua(catalog, "if io ~= nil and io.open ~= nil then\n  local f = io.open(\"x\")\nend")
     findings = check(package(catalog), luac)
@@ -122,6 +141,9 @@ def test_global_with_a_long_name_is_a_fixed_global_read(catalog, luac):
     ('local u = "//tracker.example/p"', "tracker.example is not in the hosts of manifest.json."),
     ('local u = "https://" .. string.reverse("elpmaxe.rekcart")', "https://.. gets its host when the script runs."),
     ('local s = "https://tracker.example/p"\nlocal t = "^" .. s', "tracker.example is not in the hosts of manifest.json."),
+    ('local u = "https://tracker.example/p$"', "tracker.example is not in the hosts of manifest.json."),
+    ('local u = "https://tracker.example/a.*"', "tracker.example is not in the hosts of manifest.json."),
+    ('local u = "https://tracker.example/?s?:"', "tracker.example is not in the hosts of manifest.json."),
 ])
 def test_host_hidden_from_a_plain_literal_fails(catalog, luac, code, message):
     append_lua(catalog, code)
@@ -239,6 +261,8 @@ def hex_digest_pieces(count):
     ("local s = " + " ..\n".join(f'"{piece}"' for piece in hex_digest_pieces(6)), "holds 384 characters of hex or base64"),
     ("local s = " + " ..\n".join(f'"{piece}"' for piece in [base64.b64encode(hashlib.sha512(str(n).encode()).digest()).decode() for n in range(4)]), "holds 352 characters of hex or base64"),
     ("local s = " + " ..\n".join("string.char(" + ",".join(str(100 + n) for n in range(30)) + ")" for _ in range(3)), "passes 90 bytes as numbers"),
+    ("local s = " + " ..\n".join("string.char(" + ",".join(str(100 + n) for n in range(7)) + ")" for _ in range(10)), "passes 70 bytes as numbers"),
+    ("local c = string.char\nlocal s = " + " ..\n".join("c(" + ",".join(str(100 + n) for n in range(3)) + ")" for _ in range(22)), "passes 66 bytes as numbers"),
 ])
 def test_encoded_data_spread_over_lines_and_pieces_fails(catalog, luac, code, message):
     line = append_lua(catalog, code)
