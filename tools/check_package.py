@@ -35,7 +35,7 @@ MAX_ESCAPED_BYTES = 200
 ENTROPY_MIN_BYTES = 300
 ENTROPY_MAX_BITS = 5.5
 ENCODED_MAX_CHARS = 300
-MIN_LITERAL_ARGUMENTS = 8
+MIN_LITERAL_ARGUMENTS = 3
 MAX_LITERAL_BYTES = 64
 
 ALLOWED_IBAN = "DE02120300000000202051"
@@ -350,12 +350,13 @@ def next_is_truth_test(fn: LuaFunction, index: int, register: int) -> bool:
 
 
 def rawget_key(fn: LuaFunction, index: int, register: int) -> str | None:
-    if index == 0 or index + 1 >= len(fn.instructions):
+    """The key of rawget(_G, "name"), only when the call follows the literal, so a computed key such as "lo" .. "ad" has none."""
+    if index == 0 or index + 2 >= len(fn.instructions):
         return None
-    before, after = fn.instructions[index - 1], fn.instructions[index + 1]
+    before, key, call = fn.instructions[index - 1], fn.instructions[index + 1], fn.instructions[index + 2]
     if before.op == "GETTABUP" and before.comment == '_ENV "rawget"' and before.args[0] == register - 1:
-        if after.op == "LOADK" and after.args[0] == register + 1:
-            return quoted_text(after.comment)
+        if key.op == "LOADK" and key.args[0] == register + 1 and call.op in ("CALL", "TAILCALL") and call.args[:2] == [register - 1, 3]:
+            return quoted_text(key.comment)
     return None
 
 
@@ -371,8 +372,8 @@ def check_globals(rel: str, functions: list[LuaFunction]) -> list[Finding]:
             if ins.op == "GETUPVAL" and ins.comment == "_ENV":
                 findings.append(Finding(rel, ins.line, "forbidden", ENV_AS_VALUE))
                 continue
-            if ins.op == "SELF" and ins.comment == '"dump"':
-                findings.append(Finding(rel, ins.line, "forbidden", "string.dump is not available. The check refuses every :dump() call."))
+            if ins.op in ("GETFIELD", "SELF") and quoted_text(ins.comment) == "dump":
+                findings.append(Finding(rel, ins.line, "forbidden", "string.dump is not available. The check refuses every field named dump, whatever table it is read from."))
                 continue
             if ins.op != "GETTABUP" or not (match := re.fullmatch(r"_ENV " + QUOTED, ins.comment)):
                 continue
@@ -392,8 +393,6 @@ def check_globals(rel: str, functions: list[LuaFunction]) -> list[Finding]:
                 findings.append(Finding(rel, ins.line, "forbidden", "os is used other than as os.time, os.date, os.clock, or os.difftime."))
             elif name == "os" and field_name not in OS_ALLOWED:
                 findings.append(Finding(rel, ins.line, "forbidden", f"os.{field_name} is not available."))
-            elif name == "string" and field_name == "dump":
-                findings.append(Finding(rel, ins.line, "forbidden", "string.dump is not available."))
             elif name == "io":
                 what = f"io.{field_name}" if field_name else "io"
                 findings.append(Finding(rel, ins.line, "io", f"reads {what}. Moneten gives scripts an io table without functions, so the value is nil."))
@@ -421,13 +420,17 @@ NO_TARGET_OPS = {
 
 
 def string_values(fn: LuaFunction) -> list[StringValue]:
-    """Follows string literals through registers: moves, concatenations, and the call that receives each one."""
+    """Follows string literals through registers: moves, concatenations, and the call that receives each one.
+    string.char with only literal arguments counts as the literal it returns."""
     values: dict[int, StringValue] = {}
     names: dict[int, str] = {}
+    numbers: dict[int, int] = {}
     found: list[StringValue] = []
     loaded: set[str] = set()
     for ins in fn.instructions:
         a = ins.args[0] if ins.args else -1
+        if ins.op not in NO_TARGET_OPS:
+            numbers.pop(a, None)
         if ins.op == "LOADK" and (text := quoted_text(ins.comment)) is not None:
             loaded.add(ins.comment)
             values[a] = StringValue(ins.line, text)
@@ -435,8 +438,16 @@ def string_values(fn: LuaFunction) -> list[StringValue]:
             names.pop(a, None)
         elif ins.op == "MOVE":
             values.pop(a, None)
+            names.pop(a, None)
             if ins.args[1] in values:
                 values[a] = values[ins.args[1]]
+            if ins.args[1] in names:
+                names[a] = names[ins.args[1]]
+        elif ins.op == "LOADI" and 0 <= ins.args[1] <= 255:
+            values.pop(a, None)
+            names.pop(a, None)
+            numbers[a] = ins.args[1]
+            continue
         elif ins.op == "CONCAT":
             pieces = [values.get(r) for r in range(a, a + ins.args[1])]
             for piece in pieces:
@@ -461,10 +472,17 @@ def string_values(fn: LuaFunction) -> list[StringValue]:
             for r in range(a + 1, last + 1):
                 if r in values and values[r].callee is None:
                     values[r].callee, values[r].argument = names.get(a), r - a
+            arguments = range(a + 1, a + ins.args[1])
+            built = names.get(a) == "char" and len(arguments) > 0 and all(r in numbers for r in arguments)
+            text = bytes(numbers[r] for r in arguments).decode("latin-1") if built else None
             for r in [r for r in values if r >= a]:
                 del values[r]
             for r in [r for r in names if r >= a]:
                 del names[r]
+            numbers = {r: n for r, n in numbers.items() if r < a}
+            if text is not None:
+                values[a] = StringValue(ins.line, text)
+                found.append(values[a])
         elif ins.op not in NO_TARGET_OPS:
             values.pop(a, None)
             names.pop(a, None)
@@ -496,9 +514,14 @@ UNCONTACTED_HOSTS = {
 }
 
 
+ADDRESS_HEAD = re.compile(r"[^/]*//[^/?#\s]*")
+
+
 def is_lua_pattern(value: StringValue) -> bool:
+    """Pattern syntax counts only up to the end of the host, because an address that ends in $, .*, or s?: is still contacted."""
     used_as_pattern = value.callee in PATTERN_FUNCTIONS and value.argument == 2
-    return used_as_pattern or PATTERN_SYNTAX.search(value.text) is not None
+    head = ADDRESS_HEAD.match(value.text)
+    return used_as_pattern or PATTERN_SYNTAX.search(head[0] if head else value.text) is not None
 
 
 @dataclass(frozen=True)
@@ -635,21 +658,32 @@ def encoded_length(text: str) -> int:
 
 
 def literal_bytes_in_calls(fn: LuaFunction) -> tuple[int, int]:
-    """Counts integer literals passed to calls that take at least MIN_LITERAL_ARGUMENTS of them, as string.char does."""
+    """Counts integer literals from 0 to 255 passed to a function named char, as string.char or a local alias of it,
+    and to any call that takes at least MIN_LITERAL_ARGUMENTS of them."""
     literal: set[int] = set()
+    names: dict[int, str] = {}
     total, first_line = 0, fn.first_line
     for ins in fn.instructions:
         a = ins.args[0] if ins.args else -1
         if ins.op in ("CALL", "TAILCALL") and ins.args[1] > 0:
             count = sum(r in literal for r in range(a + 1, a + ins.args[1]))
-            if count >= MIN_LITERAL_ARGUMENTS:
+            if count and (names.get(a) == "char" or count >= MIN_LITERAL_ARGUMENTS):
                 first_line = first_line if total else ins.line
                 total += count
             literal = {r for r in literal if r < a}
-        elif ins.op == "LOADI" and 0 <= ins.args[1] <= 255:
-            literal.add(a)
-        elif ins.op not in NO_TARGET_OPS:
+            names = {r: name for r, name in names.items() if r < a}
+            continue
+        if ins.op not in NO_TARGET_OPS:
             literal.discard(a)
+            names.pop(a, None)
+        if ins.op == "LOADI" and 0 <= ins.args[1] <= 255:
+            literal.add(a)
+        elif ins.op in ("GETFIELD", "GETTABUP", "SELF") and (key := re.search(QUOTED + "$", ins.comment)):
+            names[a] = unescape(key[1]).decode("utf-8", "replace")
+        elif ins.op == "GETUPVAL":
+            names[a] = ins.comment
+        elif ins.op == "MOVE" and ins.args[1] in names:
+            names[a] = names[ins.args[1]]
     return total, first_line
 
 

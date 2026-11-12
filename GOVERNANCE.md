@@ -38,6 +38,7 @@ The checks cannot see:
 - a host that a script appends to a declared host at run time, as in `"https://www.bank.example" .. suffix`;
 - an index into a table with a computed key, such as `getmetatable("").__index[name]`;
 - encoded data below the limits, or split over several functions;
+- bytes that reach `string.char` from a table or a variable, as in `string.char(table.unpack(t))`, or through an alias in an enclosing function under another name, two numbers per call;
 - what the script sends to a declared host, such as login data that a service forwards to someone else;
 - a license restriction phrased in words that the check does not list, inside a name or year of the template;
 - a change to `tools/` or `.github/` in the same pull request, which changes the checks themselves. `CODEOWNERS` makes the maintainer review those files.
