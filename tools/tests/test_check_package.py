@@ -334,3 +334,27 @@ def test_cli_refuses_status_for_an_unknown_package(catalog):
     (catalog / "status.json").write_text('{"ghost": {"state": "blocked", "note": "Sends the password to another host."}}\n')
     result = run_cli(catalog)
     assert (result.returncode, result.stdout) == (1, "status.json:1: schema: ghost has no folder in extensions/.\n")
+
+
+def test_duplicate_key_in_the_manifest_fails(catalog, luac):
+    path = package(catalog) / "manifest.json"
+    text = path.read_text()
+    path.write_text(text.replace('"hosts": [', '"hosts": ["tracker.example"],\n  "hosts": [', 1))
+    findings = check(package(catalog), luac)
+    assert summary(findings) == [(MANIFEST, 0, "schema")]
+    assert "hosts" in findings[0].message
+
+
+def test_two_services_with_the_same_name_fail(catalog, luac):
+    manifest = json.loads((package(catalog) / "manifest.json").read_text())
+    edit_manifest(catalog, services=manifest["services"] * 2)
+    findings = check(package(catalog), luac)
+    assert summary(findings) == [(MANIFEST, 1, "schema")]
+    assert "Example Bank" in findings[0].message
+
+
+def test_a_service_without_login_fields_fails(catalog, luac):
+    edit_manifest(catalog, services=[{"name": "Example Bank", "login": []}])
+    findings = check(package(catalog), luac)
+    assert summary(findings) == [(MANIFEST, 1, "schema")]
+    assert findings[0].message.startswith("services/0/login:")

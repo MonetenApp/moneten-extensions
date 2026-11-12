@@ -79,12 +79,26 @@ def load_schema(name: str) -> dict:
     return json.loads((ROOT / "schema" / name).read_text())
 
 
+class DuplicateKey(ValueError):
+    pass
+
+
+def unique_keys(pairs: list[tuple[str, object]]) -> dict:
+    keys = [key for key, _ in pairs]
+    for key in keys:
+        if keys.count(key) > 1:
+            raise DuplicateKey(repr(key))
+    return dict(pairs)
+
+
 def check_manifest(pkg: Package) -> tuple[dict | None, list[Finding]]:
     path = pkg.folder / "manifest.json"
     if not path.is_file():
         return None, [Finding(pkg.rel("manifest.json"), 0, "schema", "manifest.json is missing.")]
     try:
-        manifest = json.loads(path.read_text(encoding="utf-8"))
+        manifest = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=unique_keys)
+    except DuplicateKey as error:
+        return None, [Finding(pkg.rel("manifest.json"), 0, "schema", f"manifest.json names {error} twice. JSON parsers disagree on which value counts.")]
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
         return None, [Finding(pkg.rel("manifest.json"), getattr(error, "lineno", 0), "schema", f"manifest.json is not valid JSON: {error}")]
     findings = []
@@ -94,6 +108,9 @@ def check_manifest(pkg: Package) -> tuple[dict | None, list[Finding]]:
         findings.append(Finding(pkg.rel("manifest.json"), 1, "schema", f"{where}: {error.message}"))
     if findings:
         return None, findings
+    names = [service["name"] for service in manifest["services"]]
+    for name in sorted({n for n in names if names.count(n) > 1}):
+        findings.append(Finding(pkg.rel("manifest.json"), 1, "schema", f"services: {name!r} appears more than once."))
     if manifest["id"] != pkg.id:
         findings.append(Finding(pkg.rel("manifest.json"), 1, "schema", f"id is {manifest['id']!r} but the folder is {pkg.id!r}."))
     return manifest, findings
