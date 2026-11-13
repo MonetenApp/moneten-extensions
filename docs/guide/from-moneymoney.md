@@ -4,6 +4,8 @@ Most MoneyMoney extensions run in Moneten without a change to the script. To put
 
 You need `ext` ([Install ext](tutorial.md#install-ext)) and a fork of this repository ([Fork the repository](submit.md#fork-the-repository)).
 
+This walkthrough needs an `ext` that has the change of [MonetenApp/Moneten#102](https://github.com/MonetenApp/Moneten/pull/102). That pull request is not merged yet. Monzo builds the query of a request with `pairs()`, so the sequence of its parameters changes from run to run. An `ext` without that change compares the query as it is, and the replay can miss a request. Build `ext` from the commit that merges #102, or from a later commit of `main`.
+
 ## Step 1: Get the script
 
 1. Download the signed copy from the MoneyMoney extensions page:
@@ -73,14 +75,14 @@ Write `extensions/monzo/manifest.json`:
   "kinds": ["balances", "transactions"],
   "apiVersion": 1,
   "license": "MIT",
-  "maintainer": {"name": "Stephan Diederich", "github": "diederich"}
+  "maintainer": {"name": "Your Name", "github": "your-github-login"}
 }
 ```
 
 - `version` is the `version` of `WebBanking{}`.
 - `kinds` follows from the script. It returns balances and transactions, and no securities or statements.
 - `license` is the license of the author. The repository of the author has an MIT `LICENSE` file.
-- `maintainer` is the person who answers failure reports. If you are not the author, put your own name, and tell the author in the pull request.
+- `maintainer` is the person who answers failure reports. Put your own name and GitHub login. If you are not the author, tell the author in the pull request.
 
 ## Step 5: Add the license and the README
 
@@ -94,13 +96,23 @@ The recording needs a real login, so only an owner of a Monzo account can make i
 1. Record one run:
 
 	```sh
+	mkdir -p extensions/monzo/recording
 	ext record extensions/monzo extensions/monzo/recording/fixture.json
 	```
 
-	`ext` asks for "Client ID" and "Client secret". For the browser login, it prints the URL of `auth.monzo.com`. Open the URL in a browser and log in. Monzo then redirects to `moneymoney-app://oauth?code=...`. Copy that address from the browser and give it to `ext`.
+	`ext` asks for "Client ID" and "Client secret". For the browser login, it prints the URL of `auth.monzo.com`. Then it asks for the address at the end of the login.
 
-2. Replace your account data in the fixture, as [Replace your account data](submit.md#replace-your-account-data) tells.
-3. Write the expected file and run the test:
+2. Get the address at the end of the login:
+
+	1. Open the developer tools of your browser and select the Network tab. In Safari, first turn on **Show features for web developers** in the **Advanced** settings.
+	2. Open the URL from `ext` in the same window and log in.
+	3. At the end, Monzo redirects to `moneymoney-app://oauth?code=...&state=...`. The browser cannot open this address and does not show it in the address bar. In the Network tab, find the request whose answer redirects there. Copy the full address from the `Location` header of that answer.
+	4. Paste the address into `ext` and push Return. `ext` does not show what you paste.
+
+	CAUTION: If MoneyMoney is installed, the browser can ask to open MoneyMoney. Click **Cancel**. Otherwise macOS gives the address to MoneyMoney, MoneyMoney uses the code, and the code does not work for `ext`.
+
+3. Replace your account data in the fixture, as [Replace your account data](submit.md#replace-your-account-data) tells.
+4. Write the expected file and run the test:
 
 	```sh
 	ext test --update extensions/monzo extensions/monzo/recording/fixture.json extensions/monzo/recording/expected.json

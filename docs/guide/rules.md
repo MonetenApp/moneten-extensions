@@ -9,7 +9,7 @@ Run the checks on your Mac before you open a pull request. [Contributing](../../
 | # | Question | Check |
 | --- | --- | --- |
 | 1 | Does the script only read data, and does it send no payment? | Maintainer. Moneten never calls `SubmitPayment` or `FetchScheduledPayments`. |
-| 2 | Does `hosts` in the manifest list each host that the script contacts, also the host of a browser login? | `host` in `checks`. Each host of a new package or a new host in an update also needs the label `hosts-approved` in `maintainer sign-off`. |
+| 2 | Does `hosts` in the manifest list each host that the script contacts, also the host of a browser login? | `host` in `checks`. The finding `new-host` marks each host of a new package and each new host of an update. It needs the label `hosts-approved` in `maintainer sign-off`. |
 | 3 | Does each address in the script start with `https://` and name its host in the string? | `host` in `checks` |
 | 4 | Does the script send login data only to hosts of the service that the login belongs to? | Maintainer, with the label `hosts-approved` |
 | 5 | Is the script free of tracking, such as a request to an analytics service or a counter? | Maintainer |

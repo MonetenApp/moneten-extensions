@@ -28,7 +28,7 @@ Moneten runs Lua 5.4 with the libraries `string`, `table`, `math`, `utf8`, and `
 - `os` has only `time`, `date`, `clock`, and `difftime`.
 - `debug`, `package`, `load`, `loadstring`, `dofile`, `loadfile`, `require`, and `string.dump` are absent.
 
-A read of a removed name gives `nil`. A call of a removed name stops the script with an error. The error names the function and the line, for example `Demo.lua:7: require is not available`.
+A read of a removed name gives `nil`. A call of a removed name stops the script with an error. The error names the function and the line, for example `Demo.lua:7: require is not available in Moneten`.
 
 Use a test such as `if io ~= nil and io.open ~= nil then` before you use a file. In Moneten the test is always false.
 
@@ -45,7 +45,7 @@ Some signed MoneyMoney extensions use names that the API page does not document.
 | `elements:html()` | Returns the markup of each element in turn. |
 | `JSON(json):array()` | Returns the same as `JSON(json):dictionary()`. |
 
-A call of any other function that Moneten does not give stops the script. The error names the function and the line. A read of such a name gives `nil`, so a type check such as `if type(MM.something) == "function"` works. Moneten never ignores the call, because a call that does nothing can give wrong data. If your script needs a name that is not on this list, open an issue in [MonetenApp/Moneten](https://github.com/MonetenApp/Moneten/issues).
+A call of any other function that Moneten does not give stops the script. The error names the function and the line, for example `Moneten does not provide MM.something (Demo.lua:12)`. A read of such a name gives `nil`, so a type check such as `if type(MM.something) == "function"` works. Moneten never ignores the call, because a call that does nothing can give wrong data. If your script needs a name that is not on this list, open an issue in [MonetenApp/Moneten](https://github.com/MonetenApp/Moneten/issues).
 
 ## Product name and API version
 
@@ -78,6 +78,7 @@ Moneten lets a catalog package contact only the hosts in `hosts` of its manifest
 - Moneten checks the target of each redirect with the same rules before it follows it. It follows at most 10 redirects for one request.
 - A redirect to another host takes along only the headers `Accept`, `Accept-Language`, and `User-Agent`, and no body. A header such as `Authorization`, `Cookie`, or `X-API-Key` does not go to the other host. Moneten sends the cookies of the other host from its own cookie store.
 - A redirect with status 303 becomes a `GET` without a body. A redirect with status 301 or 302 after a `POST` also becomes a `GET` without a body.
+- A redirect with status 307 or 308 keeps the method. On the same host, it also keeps the body and all headers, such as `Authorization`.
 
 Moneten does not send a refused request. The script stops with an error that names the host, for example `Demo may not contact tracker.example, because its manifest does not list that host.`
 
@@ -99,7 +100,19 @@ When the website redirects to one of these addresses, Moneten closes the window 
 - `moneymoney-app://oauth`
 - `moneten://oauth`
 
-Moneten gives the script the first of these parameters in `credentials[1]`: `code`, `access_token`, `auth_code`, `authorization_code`, and `tokenid`. When the address has none of them, the session stops with an error. If your service uses another parameter name, open an issue in [MonetenApp/Moneten](https://github.com/MonetenApp/Moneten/issues).
+Moneten reads the parameters of the query and of the fragment of the address. It gives the script the value of the first parameter of this list in `credentials[1]`:
+
+1. `code`
+2. `access_token`
+3. `auth_code`
+4. `tokenid`
+5. `authorization_code`
+6. `id_token`
+7. `token`
+
+When none of these parameters is in the address, Moneten uses a parameter whose name ends in `code` or `token`. When the address has no such parameter, or its value is empty, the login fails with the message "The login ended without a code."
+
+The `state` parameter of the address must be the same as the `state` that the login sent. When it is different or missing, the login fails with the message "The login returned another state than the app sent. The login was not accepted."
 
 ## Captcha
 
@@ -143,12 +156,15 @@ The published API gives no limits. Moneten stops a call or a session that goes a
 | Memory of the Lua state, with the bytes of the JSON, HTML, and PDF documents that the script opens | 256 MB |
 | Processor time of one session | 60 seconds |
 | Time without a sign of life from the script | 180 seconds |
-| Longest pause of one `MM.sleep` | 300 seconds |
 | Body of one answer | 32 MB |
-| Bytes from `MM.random` in one call | 1 MB |
 | Redirects of one request | 10 |
 
 `MM.sleep` gives a sign of life each second, so a long pause is not silence. A request to the network ends in two minutes or less.
+
+Two functions do not stop the script at their limit:
+
+- `MM.sleep` pauses for at most 300 seconds in one call. For a longer value, it pauses for 300 seconds and returns. Call it again for a longer pause.
+- `MM.random` gives at most 1 MB in one call. For a larger value, it returns `nil`.
 
 Moneten also applies these rules:
 

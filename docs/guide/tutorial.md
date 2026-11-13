@@ -1,7 +1,5 @@
 # Tutorial: write your first extension
 
-<!-- The maintainers have not confirmed the tutorial API yet. See the pull request that added this page. -->
-
 This tutorial makes an extension for the fake bank of [SampleAPIs](https://github.com/jermbo/SampleAPIs). The API needs no login and no key, and all its data is made up. At the end, you have a package with one account and 12 transactions. Its recording replays with `ext test` without a network.
 
 Each step ends with a command and the output that you see. The finished package is in [`tutorial/`](tutorial/).
@@ -62,6 +60,37 @@ There is no signed release of `ext` yet. Build it from a commit of `MonetenApp/M
 	```
 
 `export` changes the path only in this terminal window. Write the line into `~/.zshrc` to keep it.
+
+### Commands and options of ext
+
+`ext --help` prints this list. `<script>` is a `.lua` file, with an optional manifest of the same base name, or a package folder with `manifest.json`.
+
+| Command | What it does |
+| --- | --- |
+| `ext run <script>` | Runs the script and prints the result as JSON. |
+| `ext record <script> <fixture>` | Runs the script and saves its HTTP traffic without secrets. |
+| `ext test <script> <fixture> <expected>` | Replays the fixture without a network and compares the result. |
+
+| Option | Command | What it does |
+| --- | --- | --- |
+| `--service <name>` | all | Uses this service when the script registers more than one. |
+| `--storage <file>` | `run` | Keeps `LocalStorage` in this file. The default is `<script>.storage.json` next to the script. |
+| `--fresh` | `run` | Starts with an empty `LocalStorage`. |
+| `--trust <file>` | `run`, `record` | Trusts this certificate (PEM or DER) for HTTPS, for a test server of your own. |
+| `--keep-random` | `record` | Keeps random values that only the replay needs, also after the script used a key that `ext` cannot trace to a random value. Use it only for values such as a PKCE verifier. |
+| `--update` | `test` | Writes the result to the expected file. |
+
+The exit status is 0 for success and 1 for a test difference. It is 2 for an error of the script or the login, and 64 for wrong arguments.
+
+### Login data from the environment
+
+`EXT_USERNAME` and `EXT_PASSWORD` fill the first two login fields, and `ext` then does not ask for them. Never write a password on the command line, such as `EXT_PASSWORD=secret ext record ...`, because the shell history keeps it. Set the password with `read -s`, which does not show what you type:
+
+```sh
+read -s EXT_PASSWORD && export EXT_PASSWORD
+```
+
+Remove it again with `unset EXT_PASSWORD` when you are done.
 
 ### When a release exists
 
@@ -143,7 +172,7 @@ An extension is a folder with a Lua script and a manifest. The script tells Mone
 	ext run tutorial
 	```
 
-	`ext` asks for the field "Any name". Type a word and push Return. You see one account without transactions:
+	`ext` asks for the field "Any name". Type `tutorial` and push Return. You see one account without transactions:
 
 	```json
 	{
@@ -263,9 +292,20 @@ Moneten lets the script contact only the hosts in `hosts` of the manifest. `ext`
 	ext run tutorial
 	```
 
-	`ext` sends no request to `www.sampleapis.com`. It stops with exit status 2 and this message:
+	`ext` sends no request to `www.sampleapis.com`. It prints the account with an `error` field, then the message again, and stops with exit status 2:
 
 	```
+	{
+	  "accounts" : [
+	    {
+	      "accountNumber" : "fakebank-1",
+	      "currency" : "USD",
+	      "error" : "Tutorial.lua:36: tutorial may not contact www.sampleapis.com, because its manifest does not list that host.",
+	      "name" : "Fake Bank Card",
+	      "type" : "AccountTypeCreditCard"
+	    }
+	  ]
+	}
 	Fake Bank Card: Tutorial.lua:36: tutorial may not contact www.sampleapis.com, because its manifest does not list that host.
 	```
 
@@ -282,14 +322,18 @@ mkdir tutorial/recording
 ext record tutorial tutorial/recording/fixture.json
 ```
 
-Type a word for "Any name". You see the result as in step 2, and then:
+Type `tutorial` for "Any name". You see these lines first:
 
 ```
 Recorded 1 request.
 Replaced 1 username.
 ```
 
-`ext` then gives two reminders. It replaces login data, cookies, and tokens with placeholders such as `{{username}}`. It does not replace names, IBANs, or amounts. This API gives only made-up data, so you need not change the recording. For a real service, read [Replace your account data](submit.md#replace-your-account-data) before you commit a recording.
+Then `ext` gives two reminders, and last it prints the result as in step 2.
+
+Type a word that does not occur in the data of the service. `ext` replaces each login value in the recording with its placeholder. It does this also in the answers of the service. The word `tutorial` does not occur in the data of SampleAPIs.
+
+`ext` replaces login data, cookies, and tokens with placeholders such as `{{username}}`. It does not replace names, IBANs, or amounts. This API gives only made-up data, so you need not change the recording. For a real service, read [Replace your account data](submit.md#replace-your-account-data) before you commit a recording.
 
 ## Step 5: Test the recording
 
@@ -301,7 +345,7 @@ Replaced 1 username.
 	ext test --update tutorial tutorial/recording/fixture.json tutorial/recording/expected.json
 	```
 
-	You see the result, and then:
+	You see:
 
 	```
 	Wrote tutorial/recording/expected.json with 1 account, 12 transactions.
@@ -319,15 +363,16 @@ Replaced 1 username.
 	PASS 1 account, 12 transactions
 	```
 
-The recording holds the time and the time zone of the run. Thus the test gives the same result on each Mac and on each day.
-
 3. Change one amount in `tutorial/recording/expected.json`, for example `-100.84` to `-100.48`, and run the test again. You see the difference and exit status 1:
 
 	```
 	/accounts/0/transactions/0/amount: expected -100.48, got -100.84
+	FAIL 1 difference
 	```
 
 	Change the amount back.
+
+The recording holds the time and the time zone of the run. Thus the test gives the same result on each Mac and on each day.
 
 ## Step 6: Finish the package
 

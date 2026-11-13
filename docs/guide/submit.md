@@ -5,13 +5,17 @@ This page tells how to put a package into the catalog, and what happens to it af
 ## Fork the repository
 
 1. On GitHub, open [MonetenApp/moneten-extensions](https://github.com/MonetenApp/moneten-extensions) and click **Fork**.
-2. Clone your fork and make a branch:
+2. Clone your fork, add this repository as `upstream`, and make a branch from its `main`:
 
 	```sh
 	git clone https://github.com/<your-login>/moneten-extensions.git
 	cd moneten-extensions
-	git switch -c add-my-bank
+	git remote add upstream https://github.com/MonetenApp/moneten-extensions.git
+	git fetch upstream
+	git switch -c add-my-bank upstream/main
 	```
+
+	In a fork, `origin/main` is the `main` of your fork, which can be old. Compare with `upstream/main`.
 
 3. Install the tools of the checks. You need Python 3.12, a C compiler, and OpenSSL 3:
 
@@ -57,6 +61,8 @@ The recording lets the checks and the maintainer replay your script without your
 
 	`ext` asks for each login field. It replaces secrets with placeholders such as `{{password}}` and `{{cookie1}}`. The secrets are the login data, the answers to challenges, cookies, `Authorization` headers, and tokens. It then tells you the number of values that it replaced, by kind. No option turns this off.
 
+	To give the login data without a question, set `EXT_USERNAME` and `EXT_PASSWORD`. Never write the password on the command line, because the shell history keeps it. Use `read -s EXT_PASSWORD && export EXT_PASSWORD`, and `unset EXT_PASSWORD` after the recording. [Login data from the environment](tutorial.md#login-data-from-the-environment) tells more.
+
 2. Write the expected result and run the test:
 
 	```sh
@@ -93,8 +99,9 @@ Replace each value in `fixture.json` and in `expected.json` together, and run `e
 Run the tests and the checks of all packages. Then check your package with `ext test`:
 
 ```sh
-BASE=origin/main tools/check-all.sh
-python3 tools/check_package.py --base origin/main --ext "$(command -v ext)" extensions/my-bank
+git fetch upstream
+BASE=upstream/main tools/check-all.sh
+python3 tools/check_package.py --base upstream/main --ext "$(command -v ext)" extensions/my-bank
 ```
 
 Each finding is one line with the file, the line, and the rule. [Rules](rules.md) lists each rule. A finding that needs a label, such as `new-host`, does not fail on your Mac. A maintainer sets the label in the review.
@@ -133,7 +140,7 @@ A maintainer then reads the change and approves it. Each new package and each up
 
 A label counts only for the commit that the maintainer read. The maintainer first approves the newest commit of the pull request, then sets the label. On a pull request of a maintainer, the author cannot approve. The author then leaves a review with **Comment** on the newest commit. The text of the review holds the word `sign-off`. Then the author sets the label.
 
-When you push a new commit after the label, the label no longer counts. The maintainer must approve the new commit and set the label again, or run the job again.
+When you push a new commit after the label, the label no longer counts. The maintainer must first approve the new commit. Then the maintainer removes the label and sets it again, or runs the job again.
 
 ## Publication
 
@@ -148,7 +155,9 @@ When a maintainer merges the pull request, the workflow `sign` waits for a maint
 3. Record again when the requests changed, and run `ext test`.
 4. Open a pull request, as for a new package.
 
-Moneten installs an update without a question when it adds no host and no login field. An update that adds a host or a login field waits until the user confirms it in the app. Until then the old version runs. A new host also needs the label `hosts-approved` in the review.
+Moneten installs an update without a question when the setting "Update extensions automatically" is on. The update must also add no host and no login field. The setting is on by default. When it is off, each update waits for the user.
+
+An update that adds a host or a login field waits until the user confirms it in the app. Until then the old version runs. A new host also needs the label `hosts-approved` in the review.
 
 ### Unmaintained packages
 

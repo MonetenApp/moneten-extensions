@@ -119,6 +119,8 @@ The kinds of data that the extension fetches. The Extensions window shows them. 
 {"kinds": ["balances", "transactions", "securities"]}
 ```
 
+Moneten 0.1 does not call `FetchStatements`. The kind `statements` is only a label in the Extensions window. A script can keep the function, but it has no effect.
+
 ## `apiVersion`
 
 The lowest value of `MM.apiVersion` that the extension needs, an integer of 1 or more. Moneten 0.1 has API version 1. A Moneten with a lower API version does not load the extension. It tells the user to update the app.
@@ -144,7 +146,7 @@ The check `license` compares `LICENSE` with the SPDX text of that license. Only 
 The person who answers failure reports for the package. `name` has 1 to 100 characters. `github` is the GitHub login without `@`.
 
 ```json
-{"maintainer": {"name": "Erika Mustermann", "github": "erika-mustermann"}}
+{"maintainer": {"name": "Your Name", "github": "your-github-login"}}
 ```
 
 When the maintainer does not answer a reproducible failure for 90 days, the package becomes unmaintained. Another author can then adopt it. Refer to [Updates and adoption](submit.md#updates-and-adoption).
