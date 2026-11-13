@@ -1,0 +1,74 @@
+{
+  "answers" : [
+    {
+      "login" : [
+        "{{username}}"
+      ]
+    }
+  ],
+  "environment" : {
+    "country" : "DE",
+    "deviceUuid" : "F4CE4474-6E40-43CA-A8DC-DE9183E73854",
+    "language" : "en",
+    "locale" : "en_US@rg=dezzzz",
+    "productBuild" : 1,
+    "productVersion" : "0.1.0",
+    "variant" : "debug"
+  },
+  "exchanges" : [
+    {
+      "request" : {
+        "headers" : {
+          "Accept" : "application/json",
+          "Accept-Language" : "en-US@rg=dezzzz",
+          "User-Agent" : "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15"
+        },
+        "method" : "GET",
+        "url" : "https://api.sampleapis.com/fakebank/accounts?id_lte=12"
+      },
+      "response" : {
+        "body" : "[{\"transactionDate\":\"2015-12-31\",\"description\":\"All Purpose Spray\",\"category\":\"Other Services\",\"debit\":100.84,\"credit\":null,\"id\":1},{\"transactionDate\":\"2016-01-02\",\"description\":\"Dr. FlimFlam's miracle cream\",\"category\":\"Health Care\",\"debit\":59.99,\"credit\":null,\"id\":2},{\"transactionDate\":\"2016-01-05\",\"description\":\"Planet Express\",\"category\":\"Other Services\",\"debit\":14.95,\"credit\":null,\"id\":3},{\"transactionDate\":\"2016-01-08\",\"description\":\"MomCorp\",\"category\":\"Payment/Credit\",\"debit\":null,\"credit\":175.78,\"id\":4},{\"transactionDate\":\"2016-01-10\",\"description\":\"30th Century Fox\",\"category\":\"Merchandise\",\"debit\":20.98,\"credit\":null,\"id\":5},{\"transactionDate\":\"2016-01-10\",\"description\":\"Human Broth\",\"category\":\"Merchandise\",\"debit\":68.85,\"credit\":null,\"id\":6},{\"transactionDate\":\"2016-01-11\",\"description\":\"MomCorp\",\"category\":\"Phone/Cable\",\"debit\":66.55,\"credit\":null,\"id\":7},{\"transactionDate\":\"2016-01-13\",\"description\":\"MomCorp\",\"category\":\"Fee/Interest Charge\",\"debit\":5,\"credit\":null,\"id\":8},{\"transactionDate\":\"2016-01-13\",\"description\":\"MomCorp\",\"category\":\"Other\",\"debit\":1.59,\"credit\":null,\"id\":9},{\"transactionDate\":\"2016-01-15\",\"description\":\"Cavitar Toothpaste\",\"category\":\"Health Care\",\"debit\":45,\"credit\":null,\"id\":10},{\"transactionDate\":\"2016-01-20\",\"description\":\"MomCorp\",\"category\":\"Payment/Credit\",\"debit\":null,\"credit\":207.97,\"id\":11},{\"transactionDate\":\"2016-01-22\",\"description\":\"30th Century Fox\",\"category\":\"Merchandise\",\"debit\":113.24,\"credit\":null,\"id\":12}]",
+        "headers" : {
+          "Access-Control-Allow-Origin" : "*",
+          "Alt-Svc" : "h3=\":443\"; ma=86400",
+          "Content-Encoding" : "br",
+          "Content-Type" : "application/json; charset=utf-8",
+          "Date" : "Fri, 13 Nov 2026 07:14:00 GMT",
+          "Etag" : "W/\"5d1-xv7LU6ohFLxnYDyyYoAiyNZ1x14\"",
+          "Priority" : "u=3,i",
+          "Server" : "cloudflare",
+          "Strict-Transport-Security" : "max-age=31536000; includeSubDomains",
+          "access-control-expose-headers" : "X-Total-Count,Link,Location,RateLimit-Limit,RateLimit-Remaining,RateLimit-Reset,Retry-After",
+          "cf-cache-status" : "DYNAMIC",
+          "cf-ray" : "a59bfa2139c7caad-HAM",
+          "cross-origin-opener-policy" : "same-origin",
+          "cross-origin-resource-policy" : "same-origin",
+          "nel" : "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+          "origin-agent-cluster" : "?1",
+          "ratelimit-limit" : "5000",
+          "ratelimit-policy" : "5000;w=900",
+          "ratelimit-remaining" : "4991",
+          "ratelimit-reset" : "570",
+          "referrer-policy" : "no-referrer",
+          "report-to" : "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=bd22mI6VKztm%2B8EYqugdaAjf4hW2f%2BLPcb3y%2B8vXfMAkoA0iB1P3lOWJiruXfFv5BBWVnPCa9ac2%2F8kQKdp6WR0S7BG5ClKYozhzONt6iONEMxsIzLvxcd7EIyi3mkYqVViUf5c%3D\"}]}",
+          "server-timing" : "cfExtPri",
+          "x-content-type-options" : "nosniff",
+          "x-dns-prefetch-control" : "off",
+          "x-download-options" : "noopen",
+          "x-frame-options" : "SAMEORIGIN",
+          "x-permitted-cross-domain-policies" : "none",
+          "x-total-count" : "12",
+          "x-xss-protection" : "0"
+        },
+        "status" : 200
+      }
+    }
+  ],
+  "format" : 1,
+  "random" : [
+
+  ],
+  "service" : "Sample Fake Bank",
+  "startTime" : 1794554040,
+  "timeZone" : "Europe/Berlin"
+}

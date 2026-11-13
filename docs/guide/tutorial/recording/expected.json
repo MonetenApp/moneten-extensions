@@ -1,0 +1,109 @@
+{
+  "accounts" : [
+    {
+      "accountNumber" : "fakebank-1",
+      "balance" : -113.24,
+      "currency" : "USD",
+      "name" : "Fake Bank Card",
+      "transactions" : [
+        {
+          "amount" : -100.84,
+          "booked" : true,
+          "bookingDate" : 1451559600,
+          "currency" : "USD",
+          "name" : "All Purpose Spray",
+          "purpose" : "Other Services"
+        },
+        {
+          "amount" : -59.99,
+          "booked" : true,
+          "bookingDate" : 1451732400,
+          "currency" : "USD",
+          "name" : "Dr. FlimFlam's miracle cream",
+          "purpose" : "Health Care"
+        },
+        {
+          "amount" : -14.95,
+          "booked" : true,
+          "bookingDate" : 1451991600,
+          "currency" : "USD",
+          "name" : "Planet Express",
+          "purpose" : "Other Services"
+        },
+        {
+          "amount" : 175.78,
+          "booked" : true,
+          "bookingDate" : 1452250800,
+          "currency" : "USD",
+          "name" : "MomCorp",
+          "purpose" : "Payment/Credit"
+        },
+        {
+          "amount" : -20.98,
+          "booked" : true,
+          "bookingDate" : 1452423600,
+          "currency" : "USD",
+          "name" : "30th Century Fox",
+          "purpose" : "Merchandise"
+        },
+        {
+          "amount" : -68.85,
+          "booked" : true,
+          "bookingDate" : 1452423600,
+          "currency" : "USD",
+          "name" : "Human Broth",
+          "purpose" : "Merchandise"
+        },
+        {
+          "amount" : -66.55,
+          "booked" : true,
+          "bookingDate" : 1452510000,
+          "currency" : "USD",
+          "name" : "MomCorp",
+          "purpose" : "Phone/Cable"
+        },
+        {
+          "amount" : -5,
+          "booked" : true,
+          "bookingDate" : 1452682800,
+          "currency" : "USD",
+          "name" : "MomCorp",
+          "purpose" : "Fee/Interest Charge"
+        },
+        {
+          "amount" : -1.59,
+          "booked" : true,
+          "bookingDate" : 1452682800,
+          "currency" : "USD",
+          "name" : "MomCorp",
+          "purpose" : "Other"
+        },
+        {
+          "amount" : -45,
+          "booked" : true,
+          "bookingDate" : 1452855600,
+          "currency" : "USD",
+          "name" : "Cavitar Toothpaste",
+          "purpose" : "Health Care"
+        },
+        {
+          "amount" : 207.97,
+          "booked" : true,
+          "bookingDate" : 1453287600,
+          "currency" : "USD",
+          "name" : "MomCorp",
+          "purpose" : "Payment/Credit"
+        },
+        {
+          "amount" : -113.24,
+          "booked" : true,
+          "bookingDate" : 1453460400,
+          "currency" : "USD",
+          "name" : "30th Century Fox",
+          "purpose" : "Merchandise"
+        }
+      ],
+      "type" : "AccountTypeCreditCard"
+    }
+  ]
+}
