@@ -124,7 +124,7 @@ Each finding is one line with the file, the line, and the rule. [Rules](rules.md
 The pull request must pass three jobs:
 
 - `checks` runs the tests of the tools and every check on every package.
-- `ext test` builds `ext` from the commit of `MonetenApp/Moneten` in `tools/ext.lock` and replays each recording with it. The job also runs the checks of `checks` again.
+- `ext test` builds `ext` from the commit of `MonetenApp/Moneten` in `tools/ext.lock` and replays each recording with it.
 - `maintainer sign-off` fails until a maintainer accepts the findings that only a person can judge.
 
 A maintainer then reads the change and approves it. Each new package and each update needs one approval of a maintainer.

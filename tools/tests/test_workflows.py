@@ -42,12 +42,16 @@ def test_ext_lock_pins_a_full_commit():
     assert re.search(r"(?m)^commit=[0-9a-f]{40}$", lock)
 
 
-def test_ext_test_runs_the_checks_only_with_a_built_ext():
-    names = [step.split("\n")[0] for step in steps(jobs("check.yml")["ext-test"])]
-    run = [step for step in steps(jobs("check.yml")["ext-test"]) if step.startswith("run: tools/check-all.sh")]
-    assert names.index("name: Build ext from the pinned commit") < names.index("name: Require the ext binary") < names.index("run: tools/check-all.sh")
-    assert "run: .cache/moneten/.build/release/ext --version" in steps(jobs("check.yml")["ext-test"])[names.index("name: Require the ext binary")]
-    assert run and "EXT: .cache/moneten/.build/release/ext" in run[0]
+def test_ext_test_replays_every_recording_only_with_a_built_ext():
+    job_steps = steps(jobs("check.yml")["ext-test"])
+    names = [step.split("\n")[0] for step in job_steps]
+    build = names.index("name: Build ext from the pinned commit")
+    binary = names.index("name: Require the ext binary")
+    replay = names.index("name: Replay every recording with ext")
+    assert build < binary < replay
+    assert "run: .cache/moneten/.build/release/ext --version" in job_steps[binary]
+    assert "run: python3 tools/check_package.py --ext .cache/moneten/.build/release/ext extensions/*/ docs/guide/tutorial" in job_steps[replay]
+    assert "check-all.sh" not in jobs("check.yml")["ext-test"]
 
 
 def test_sign_off_counts_only_labels_that_a_maintainer_bound_to_the_head():
