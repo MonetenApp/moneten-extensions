@@ -1,0 +1,172 @@
+{
+  "answers": [
+    {
+      "login": [
+        "{{username}}",
+        "{{password}}-482916"
+      ]
+    }
+  ],
+  "environment": {
+    "country": "IE",
+    "deviceUuid": "00000000-0000-4000-8000-000000000000",
+    "language": "en",
+    "locale": "en_IE",
+    "productBuild": 1,
+    "productVersion": "0.1.0",
+    "variant": "debug"
+  },
+  "exchanges": [
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://www.business24.ie/online/"
+      },
+      "response": {
+        "body": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Login</title></head><body>\n<div class=\"module-login\"><form method=\"post\" action=\"/online/Login/Step1\">\n<input type=\"hidden\" name=\"__RequestVerificationToken\" value=\"{{token1}}\">\n<label for=\"login-number\">Login number</label><input id=\"login-number\" name=\"LoginNumber\" type=\"text\" value=\"\">\n<label for=\"login-password\">Password</label><input id=\"login-password\" name=\"Password\" type=\"password\" value=\"\">\n<button id=\"btnsubmit\" type=\"submit\">Continue</button>\n</form></div>\n</body></html>\n",
+        "headers": {
+          "Content-Type": "text/html; charset=utf-8",
+          "Set-Cookie": "ASP.NET_SessionId={{cookie1}}; path=/; secure; HttpOnly"
+        },
+        "status": 200
+      }
+    },
+    {
+      "request": {
+        "body": "__RequestVerificationToken={{token1}}&LoginNumber={{username}}&Password={{password}}",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "method": "POST",
+        "url": "https://www.business24.ie/online/Login/Step1"
+      },
+      "response": {
+        "body": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Login</title></head><body>\n<div class=\"module-login\"><form method=\"post\" action=\"/online/Login/Step2\">\n<input type=\"hidden\" name=\"__RequestVerificationToken\" value=\"{{token2}}\">\n<div><label for=\"login-digit-1\">Digit 2 of your PAN</label><input id=\"login-digit-1\" name=\"Digit1\" type=\"password\" value=\"\"></div>\n<div><label for=\"login-digit-2\">Digit 4 of your PAN</label><input id=\"login-digit-2\" name=\"Digit2\" type=\"password\" value=\"\"></div>\n<div><label for=\"login-digit-3\">Digit 6 of your PAN</label><input id=\"login-digit-3\" name=\"Digit3\" type=\"password\" value=\"\"></div>\n<button id=\"submit\" type=\"submit\">Log in</button>\n</form></div>\n</body></html>\n",
+        "headers": {
+          "Content-Type": "text/html; charset=utf-8"
+        },
+        "status": 200
+      }
+    },
+    {
+      "request": {
+        "body": "__RequestVerificationToken={{token2}}&Digit1=8&Digit2=9&Digit3=6",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "method": "POST",
+        "url": "https://www.business24.ie/online/Login/Step2"
+      },
+      "response": {
+        "body": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Accounts</title></head><body>\n<div class=\"header\"><a href=\"/online/Logout\">Logout</a></div>\n<div class=\"module-last-logon\"><div><p>Your last logon was 09 Nov 2026 at 17:42</p></div></div>\n<div class=\"module-account first\">\n<h2><a href=\"/online/Accounts/Details?accountId=7Q2K9X\">Business Current Account</a></h2>\n<div class=\"col5\"><p><span>xxxx 4821</span></p></div>\n<div class=\"col6\"><p>Available <span class=\"fund-1\">€12,480.55</span></p></div>\n</div>\n<div class=\"module-account\">\n<h2><a href=\"/online/Accounts/Details?accountId=3M8W1D\">Business Deposit Account</a></h2>\n<div class=\"col5\"><p><span>xxxx 7730</span></p></div>\n<div class=\"col6\"><p>Available <span class=\"fund-1\">€25,000.00</span></p></div>\n</div>\n</body></html>\n",
+        "headers": {
+          "Content-Type": "text/html; charset=utf-8"
+        },
+        "status": 200
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://www.business24.ie/online/Accounts/Details/RecentTransactions?accountId=7Q2K9X&months=3"
+      },
+      "response": {
+        "body": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Recent transactions</title></head><body>\n<div class=\"module-account-detail\"><div><table><thead><tr><th>Date</th><th>Description</th><th>Money in</th><th>Money out</th></tr></thead><tbody><tr><td>07 Nov 26</td><td>CTHARBOUR DESIGN LTD<form method=\"post\" action=\"/online/Accounts/Details/SepaDetails\"><input type=\"hidden\" name=\"transactionId\" value=\"{{token3}}\"></form></td><td>1,850.00</td><td></td></tr><tr><td>05 Nov 26</td><td>POSCORNER CAFE DUBLIN</td><td></td><td>14.20</td></tr><tr><td>03 Nov 26</td><td>DDDUBLIN UTILITIES</td><td></td><td>212.48</td></tr><tr><td>28 Oct 26</td><td>CTOFFICE SUPPLIES DIRECT<form method=\"post\" action=\"/online/Accounts/Details/SepaDetails\"><input type=\"hidden\" name=\"transactionId\" value=\"{{token4}}\"></form></td><td></td><td>349.99</td></tr></tbody></table></div></div>\n</body></html>\n",
+        "headers": {
+          "Content-Type": "text/html; charset=utf-8"
+        },
+        "status": 200
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://www.business24.ie/online/Accounts/Details/PendingTransactions?accountId=7Q2K9X"
+      },
+      "response": {
+        "body": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Pending transactions</title></head><body>\n<div class=\"module-account\"><div><table><tbody><tr><td>09 Nov 26</td><td>CNCFRESH MARKET</td><td></td><td>8.65</td></tr></tbody></table></div></div>\n</body></html>\n",
+        "headers": {
+          "Content-Type": "text/html; charset=utf-8"
+        },
+        "status": 200
+      }
+    },
+    {
+      "request": {
+        "body": "transactionId={{token3}}",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "method": "POST",
+        "url": "https://www.business24.ie/online/Accounts/Details/SepaDetails"
+      },
+      "response": {
+        "body": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>SEPA details</title></head><body>\n<div class=\"row\"><div class=\"label\">Debtor name</div><div class=\"value\">Harbour Design Ltd</div></div>\n<div class=\"row\"><div class=\"label\">Debtor IBAN</div><div class=\"value\">DE02120300000000202051</div></div>\n<div class=\"row\"><div class=\"label\">Remittance information</div><div class=\"value\">Invoice 2026-118</div></div>\n<div class=\"row\"><div class=\"label\">Creditor name</div><div class=\"value\">Example Trading Ltd</div></div>\n<div class=\"row\"><div class=\"label\">Creditor IBAN</div><div class=\"value\">DE02120300000000202051</div></div>\n<div class=\"row\"><div class=\"label\">Creditor BIC</div><div class=\"value\">IPBSIE2D</div></div>\n<div class=\"row\"><div class=\"label\">Amount</div><div class=\"value\">1850.00</div></div>\n<div class=\"row\"><div class=\"label\">End-to-end reference</div><div class=\"value\">HD-2026-118</div></div>\n<div class=\"row\"><div class=\"label\">Additional information</div><div class=\"value\">Thank you</div></div>\n</body></html>\n",
+        "headers": {
+          "Content-Type": "text/html; charset=utf-8"
+        },
+        "status": 200
+      }
+    },
+    {
+      "request": {
+        "body": "transactionId={{token4}}",
+        "headers": {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        "method": "POST",
+        "url": "https://www.business24.ie/online/Accounts/Details/SepaDetails"
+      },
+      "response": {
+        "body": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>SEPA details</title></head><body>\n<div class=\"row\"><div class=\"label\">Debtor name</div><div class=\"value\">Example Trading Ltd</div></div>\n<div class=\"row\"><div class=\"label\">Debtor IBAN</div><div class=\"value\">DE02120300000000202051</div></div>\n<div class=\"row\"><div class=\"label\">Remittance information</div><div class=\"value\">OSD-77120</div></div>\n<div class=\"row\"><div class=\"label\">Creditor name</div><div class=\"value\">Office Supplies Direct</div></div>\n<div class=\"row\"><div class=\"label\">Creditor IBAN</div><div class=\"value\">DE02120300000000202051</div></div>\n<div class=\"row\"><div class=\"label\">Creditor BIC</div><div class=\"value\">BOFIIE2D</div></div>\n<div class=\"row\"><div class=\"label\">Amount</div><div class=\"value\">349.99</div></div>\n<div class=\"row\"><div class=\"label\">End-to-end reference</div><div class=\"value\">Order 77120 paper and toner</div></div>\n<div class=\"row\"><div class=\"label\">Additional information</div><div class=\"value\">-</div></div>\n</body></html>\n",
+        "headers": {
+          "Content-Type": "text/html; charset=utf-8"
+        },
+        "status": 200
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://www.business24.ie/online/Accounts/Details/RecentTransactions?accountId=3M8W1D&months=3"
+      },
+      "response": {
+        "body": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Recent transactions</title></head><body>\n<div class=\"module-account-detail\"><div><table><thead><tr><th>Date</th><th>Description</th><th>Money in</th><th>Money out</th></tr></thead><tbody><tr><td>01 Nov 26</td><td>INTEREST</td><td>4.17</td><td></td></tr></tbody></table></div></div>\n</body></html>\n",
+        "headers": {
+          "Content-Type": "text/html; charset=utf-8"
+        },
+        "status": 200
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://www.business24.ie/online/Accounts/Details/PendingTransactions?accountId=3M8W1D"
+      },
+      "response": {
+        "body": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Pending transactions</title></head><body>\n<div class=\"module-account\"><div><table><tbody></tbody></table></div></div>\n</body></html>\n",
+        "headers": {
+          "Content-Type": "text/html; charset=utf-8"
+        },
+        "status": 200
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://www.business24.ie/online/Logout"
+      },
+      "response": {
+        "body": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Logged out</title></head><body>\n<h1>You have successfully logged out</h1>\n</body></html>\n",
+        "headers": {
+          "Content-Type": "text/html; charset=utf-8"
+        },
+        "status": 200
+      }
+    }
+  ],
+  "format": 1,
+  "service": "Permanent TSB Business",
+  "startTime": 1794301200,
+  "timeZone": "Europe/Dublin"
+}
