@@ -1,0 +1,70 @@
+{
+  "formatVersion": 1,
+  "version": 1,
+  "published": "2026-11-13T06:47:59Z",
+  "extensions": [
+    {
+      "id": "example",
+      "status": "active",
+      "manifest": {
+        "id": "example",
+        "name": "Example Bank",
+        "version": "1.0",
+        "description": "Fetches balances and transactions from the made-up Example Bank.",
+        "files": [
+          "Example.lua"
+        ],
+        "hosts": [
+          "api.bank.example",
+          "www.bank.example"
+        ],
+        "services": [
+          {
+            "name": "Example Bank",
+            "login": [
+              {
+                "label": "Username"
+              },
+              {
+                "label": "Password",
+                "secret": true
+              }
+            ]
+          }
+        ],
+        "kinds": [
+          "balances",
+          "transactions"
+        ],
+        "apiVersion": 1,
+        "license": "MIT",
+        "maintainer": {
+          "name": "Moneten maintainers",
+          "github": "alexander-schneider"
+        }
+      },
+      "files": [
+        {
+          "path": "Example.lua",
+          "size": 2280,
+          "sha256": "7ff6cb29598ad3fe83e2f1f4e4143823b548637739b765c271048bb8676914b1"
+        },
+        {
+          "path": "LICENSE",
+          "size": 1076,
+          "sha256": "652599c57bf60c124b0a76f6055fba1ddda97da8d801e8133315ee02e0c25130"
+        },
+        {
+          "path": "README.md",
+          "size": 664,
+          "sha256": "5b58cb2a2106c331777d3c026038f14bf38e184cc04775061a986bd475be5683"
+        },
+        {
+          "path": "manifest.json",
+          "size": 561,
+          "sha256": "80f22e5650e25c11572893668b3d0ee590bf34010f8651a8d47b1ef5e845e337"
+        }
+      ]
+    }
+  ]
+}
