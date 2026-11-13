@@ -2,6 +2,8 @@
 
 This page says how to submit an extension and how to run the checks before you open a pull request.
 
+The [author guide](docs/guide/) tells how to write an extension. [Submit an extension](docs/guide/submit.md) gives each step of a submission, with the recording and the review.
+
 ## Add a package
 
 1. Copy `extensions/example` to `extensions/<id>`, where `<id>` is a lowercase name such as `my-bank`.

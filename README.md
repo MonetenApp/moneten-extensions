@@ -30,6 +30,17 @@ The catalog is being built for Moneten v0.1. Nothing can be installed from here 
 - The source is readable and has an open-source license that is compatible with the GPL. We recommend MIT.
 - Each extension names a maintainer. An extension that fails and gets no answer from its maintainer within 90 days is marked as unmaintained, and someone else can take it over.
 
+## Write an extension
+
+The [author guide](docs/guide/) tells how to write, test, and submit an extension:
+
+- [Tutorial](docs/guide/tutorial.md): install `ext` and write a first extension, step by step.
+- [Reference](docs/guide/reference.md): each difference from the MoneyMoney Web Banking API.
+- [Manifest](docs/guide/manifest.md): each field of `manifest.json`, with an example.
+- [Rules](docs/guide/rules.md): the questions that the review asks about each package.
+- [Submit an extension](docs/guide/submit.md): the pull request, the review, updates, and adoption.
+- [From MoneyMoney to Moneten](docs/guide/from-moneymoney.md): add a manifest to an existing MoneyMoney extension.
+
 ## Contribute
 
 [Contributing](CONTRIBUTING.md) says how to submit an extension and run the checks. [Governance](GOVERNANCE.md) says how the review, the signing, and the states of a package work.
