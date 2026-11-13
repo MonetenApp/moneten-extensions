@@ -10,10 +10,10 @@
       "type": "AccountTypeGiro",
       "balance": 1234.56,
       "transactions": [
-        {"bookingDate": "2026-10-02", "name": "Stadtwerke Musterstadt", "purpose": "Abschlag Strom Oktober", "amount": -89.00, "currency": "EUR", "booked": true},
-        {"bookingDate": "2026-10-15", "name": "Muster GmbH", "purpose": "Gehalt Oktober", "amount": 2500.00, "currency": "EUR", "booked": true},
-        {"bookingDate": "2026-10-20", "name": "Buchhandlung am Markt", "purpose": "Rechnung 2026-117", "amount": -24.90, "currency": "EUR", "booked": true},
-        {"bookingDate": "2026-10-28", "name": "Erika Mustermann", "purpose": "Umbuchung", "amount": -150.00, "currency": "EUR", "booked": true}
+        {"bookingDate": 1790935200, "name": "Stadtwerke Musterstadt", "purpose": "Abschlag Strom Oktober", "amount": -89.00, "currency": "EUR", "booked": true},
+        {"bookingDate": 1792058400, "name": "Muster GmbH", "purpose": "Gehalt Oktober", "amount": 2500.00, "currency": "EUR", "booked": true},
+        {"bookingDate": 1792490400, "name": "Buchhandlung am Markt", "purpose": "Rechnung 2026-117", "amount": -24.90, "currency": "EUR", "booked": true},
+        {"bookingDate": 1793185200, "name": "Erika Mustermann", "purpose": "Umbuchung", "amount": -150.00, "currency": "EUR", "booked": true}
       ]
     }
   ]

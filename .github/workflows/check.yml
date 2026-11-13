@@ -81,6 +81,8 @@ jobs:
       - run: tools/setup.sh
       - name: Build ext from the pinned commit
         run: swift build --disable-keychain -c release --product ext --package-path .cache/moneten
+      - name: Require the ext binary
+        run: .cache/moneten/.build/release/ext --version
       - run: tools/check-all.sh
         env:
           EXT: .cache/moneten/.build/release/ext
