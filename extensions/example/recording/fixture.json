@@ -1,0 +1,63 @@
+{
+  "formatVersion": 1,
+  "service": "Example Bank",
+  "startTime": "2026-11-01T09:00:00Z",
+  "since": "2026-10-01T00:00:00Z",
+  "login": {"Username": "{{username}}", "Password": "{{password}}"},
+  "random": [],
+  "answers": [],
+  "exchanges": [
+    {
+      "request": {
+        "method": "POST",
+        "url": "https://api.bank.example/v1/login",
+        "headers": {"Accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"},
+        "body": "username={{username}}&password={{password}}"
+      },
+      "response": {
+        "status": 200,
+        "headers": {"Content-Type": "application/json"},
+        "body": "{\"token\": \"{{token-1}}\"}"
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://api.bank.example/v1/accounts",
+        "headers": {"Accept": "application/json", "Authorization": "Bearer {{token-1}}"},
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {"Content-Type": "application/json"},
+        "body": "{\"accounts\": [{\"id\": \"4711\", \"name\": \"Girokonto\", \"owner\": \"Erika Mustermann\", \"iban\": \"DE02120300000000202051\", \"bic\": \"BYLADEM1001\", \"currency\": \"EUR\"}]}"
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://api.bank.example/v1/accounts/4711/transactions?since=2026-10-01",
+        "headers": {"Accept": "application/json", "Authorization": "Bearer {{token-1}}"},
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {"Content-Type": "application/json"},
+        "body": "{\"balance\": 1234.56, \"transactions\": [{\"date\": \"2026-10-02\", \"counterparty\": \"Stadtwerke Musterstadt\", \"purpose\": \"Abschlag Strom Oktober\", \"amount\": -89.00, \"currency\": \"EUR\"}, {\"date\": \"2026-10-15\", \"counterparty\": \"Muster GmbH\", \"purpose\": \"Gehalt Oktober\", \"amount\": 2500.00, \"currency\": \"EUR\"}, {\"date\": \"2026-10-20\", \"counterparty\": \"Buchhandlung am Markt\", \"purpose\": \"Rechnung 2026-117\", \"amount\": -24.90, \"currency\": \"EUR\"}, {\"date\": \"2026-10-28\", \"counterparty\": \"Erika Mustermann\", \"purpose\": \"Umbuchung\", \"amount\": -150.00, \"currency\": \"EUR\"}]}"
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "url": "https://api.bank.example/v1/logout",
+        "headers": {"Accept": "application/json", "Authorization": "Bearer {{token-1}}", "Content-Type": "application/json"},
+        "body": ""
+      },
+      "response": {
+        "status": 200,
+        "headers": {"Content-Type": "application/json"},
+        "body": "{}"
+      }
+    }
+  ]
+}

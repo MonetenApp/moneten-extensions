@@ -30,6 +30,10 @@ The catalog is being built for Moneten v0.1. Nothing can be installed from here 
 - The source is readable and has an open-source license that is compatible with the GPL. We recommend MIT.
 - Each extension names a maintainer. An extension that fails and gets no answer from its maintainer within 90 days is marked as unmaintained, and someone else can take it over.
 
+## Contribute
+
+[Contributing](CONTRIBUTING.md) says how to submit an extension and run the checks. [Governance](GOVERNANCE.md) says how the review, the signing, and the states of a package work.
+
 ## License
 
 The tooling and documentation of this repository are under the [MIT License](LICENSE). Each extension carries its own license in its folder.

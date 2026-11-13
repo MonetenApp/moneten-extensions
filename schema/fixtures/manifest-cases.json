@@ -1,0 +1,17 @@
+{
+  "description": "Manifests that the catalog checks and the parser of the app must judge alike. Each case changes fields of extensions/example/manifest.json. valid says whether the manifest matches schema/manifest.schema.json.",
+  "cases": [
+    {"name": "the example package", "change": {}, "valid": true},
+    {"name": "a version with a final newline", "change": {"version": "1.0\n"}, "valid": false},
+    {"name": "an id with a final newline", "change": {"id": "example\n"}, "valid": false},
+    {"name": "a host with a final newline", "change": {"hosts": ["www.bank.example\n"]}, "valid": false},
+    {"name": "a GitHub login with a final newline", "change": {"maintainer": {"name": "Erika Mustermann", "github": "erika\n"}}, "valid": false},
+    {"name": "a file name with a final newline", "change": {"files": ["Example.lua\n"]}, "valid": false},
+    {"name": "a file name with a space", "change": {"files": ["Permanent TSB Business.lua"]}, "valid": false},
+    {"name": "a file name with an underscore and a hyphen", "change": {"files": ["Permanent_TSB-Business.lua"]}, "valid": true},
+    {"name": "GPL-2.0-or-later", "change": {"license": "GPL-2.0-or-later"}, "valid": false},
+    {"name": "GPL-3.0-or-later", "change": {"license": "GPL-3.0-or-later"}, "valid": true},
+    {"name": "a version with three parts", "change": {"version": "1.0.12"}, "valid": true},
+    {"name": "a version with four parts", "change": {"version": "1.0.1.2"}, "valid": false}
+  ]
+}

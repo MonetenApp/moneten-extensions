@@ -1,0 +1,123 @@
+name: sign
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - extensions/**
+      - status.json
+      - keys/**
+      - schema/**
+      - tools/build_index.py
+      - tools/check_package.py
+      - tools/publish.sh
+      - tools/push-site.sh
+      - tools/verify_site.py
+      - .github/workflows/sign.yml
+  # The key rotation in docs/set-up-signing.md signs once with the next key before keys/ changes.
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: catalog-signing
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: check every package
+    if: github.repository == 'MonetenApp/moneten-extensions' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - run: tools/setup.sh
+      - run: tools/check-all.sh
+
+  sign:
+    name: sign the index
+    needs: check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    environment:
+      name: catalog-signing
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - run: tools/setup.sh
+      - name: Build, sign, and verify the index
+        env:
+          INDEX_SIGNING_KEY: ${{ secrets.INDEX_SIGNING_KEY }}
+        run: |
+          if [[ -z "$INDEX_SIGNING_KEY" ]]; then
+            echo "::error::The environment catalog-signing has no secret INDEX_SIGNING_KEY. See docs/set-up-signing.md."
+            exit 1
+          fi
+          key="$RUNNER_TEMP/index-signing-key.pem"
+          trap 'rm -f "$key"' EXIT
+          (umask 077 && printf '%s\n' "$INDEX_SIGNING_KEY" > "$key")
+          tools/publish.sh "$key" "$RUNNER_TEMP/signed"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: signed-site
+          path: ${{ runner.temp }}/signed
+          include-hidden-files: true
+          retention-days: 1
+
+  push:
+    name: push the signed site to gh-pages
+    needs: sign
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: signed-site
+          path: ${{ runner.temp }}/signed
+      - name: Push the signed site to gh-pages
+        env:
+          PUSH_TOKEN: ${{ github.token }}
+        run: |
+          export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0="http.https://github.com/.extraheader"
+          GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$PUSH_TOKEN" | base64 -w0)"
+          export GIT_CONFIG_VALUE_0
+          tools/push-site.sh "$RUNNER_TEMP/signed"
+      # A push made with the workflow token starts no Pages build, so the job deploy publishes the tree
+      # that push-site.sh checked and pushed.
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: ${{ runner.temp }}/signed/site
+
+  deploy:
+    name: deploy to GitHub Pages
+    needs: push
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
