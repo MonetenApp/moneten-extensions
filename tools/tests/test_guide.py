@@ -1,6 +1,7 @@
 import json
-import sys
+import os
 import re
+import sys
 from pathlib import Path
 
 import pytest
@@ -16,6 +17,7 @@ FENCE = re.compile(r"^[ \t]*(```|~~~)")
 LINK = re.compile(r"(?<!!)\[[^\]]*\]\(([^)\s]+)\)")
 HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
 JSON_BLOCK = re.compile(r"^([ \t]*)```json[ \t]*\n(.*?)^\1```", re.MULTILINE | re.DOTALL)
+LUA_BLOCK = re.compile(r"^([ \t]*)```lua[ \t]*\n(.*?)^\1```", re.MULTILINE | re.DOTALL)
 
 
 def markdown_files() -> list[Path]:
@@ -158,3 +160,30 @@ def test_full_manifests_on_the_pages_are_the_tutorial_manifest():
 
 def test_tutorial_package_passes_the_checks(luac):
     assert check_package(TUTORIAL, luac) == []
+
+
+def lua_blocks(page: Path) -> list[str]:
+    return [re.sub(r"^" + match[1], "", match[2], flags=re.MULTILINE) for match in LUA_BLOCK.finditer(page.read_text(encoding="utf-8"))]
+
+
+def replace_function(script: str, name: str, code: str) -> str:
+    old = re.search(rf"^function {name}\(.*?^end\n", script, re.MULTILINE | re.DOTALL)
+    assert old, f"{name} is not in the script"
+    return script.replace(old[0], code, 1)
+
+
+def tutorial_script(page: Path) -> str:
+    """The script that a reader has after step 2, from the Lua blocks of the tutorial and the edits that the steps name."""
+    first, top, initialize, refresh = lua_blocks(page)[:4]
+    script = first.replace("}\n\nfunction SupportsBank", "}\n\n" + top + "\nfunction SupportsBank", 1)
+    script = replace_function(script, "InitializeSession", initialize)
+    return replace_function(script, "RefreshAccount", refresh)
+
+
+def test_tutorial_steps_compose_to_the_package_script():
+    assert tutorial_script(GUIDE / "tutorial.md") == (TUTORIAL / "Tutorial.lua").read_text()
+
+
+@pytest.mark.skipif(not os.environ.get("EXT"), reason="EXT names no ext binary")
+def test_tutorial_recording_replays_with_ext(luac):
+    assert check_package(TUTORIAL, luac, ext=os.environ["EXT"]) == []
