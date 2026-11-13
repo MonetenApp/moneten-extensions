@@ -13,7 +13,7 @@ The [author guide](docs/guide/) tells how to write an extension. [Submit an exte
 5. Record one run of the script with `ext record` into `recording/fixture.json`, and save its result as `recording/expected.json`. Replace names, account numbers, and amounts that belong to you. Use the IBAN `DE02120300000000202051` and email addresses on `example.com`.
 6. Open a pull request. Each later change to a file of the package needs a higher `version` in the manifest.
 
-The `ext` tool comes from the [Moneten repository](https://github.com/MonetenApp/Moneten). Until `tools/ext.lock` pins a commit that has it, the job `ext test` is skipped, and the pull request shows it as skipped.
+The `ext` tool comes from the [Moneten repository](https://github.com/MonetenApp/Moneten). The job `ext test` builds it from the commit in `tools/ext.lock` and replays each recording. When the file names no commit, the job is skipped, and the pull request shows it as skipped.
 
 ## Run the checks on your Mac
 

@@ -25,7 +25,7 @@ Run the checks on your Mac before you open a pull request. [Contributing](../../
 | 15 | Does each service of `WebBanking{services = ...}` have an entry in `services` of the manifest, with the login fields that the script reads? | Maintainer |
 | 16 | Does the folder hold only `manifest.json`, `README.md`, `LICENSE`, the Lua files in `files`, `recording/fixture.json`, and `recording/expected.json`, all as regular files? | `layout` in `checks` |
 | 17 | Is `license` on the allowlist, and is `LICENSE` the SPDX text of that license with only names and years filled in? | `license` in `checks` |
-| 18 | Does `ext test` replay `recording/fixture.json` and get `recording/expected.json`? | `ext-test` in the job `ext test`. The job runs when `tools/ext.lock` names a commit. |
+| 18 | Does `ext test` replay `recording/fixture.json` and get `recording/expected.json`? | `ext-test` in the job `ext test`, with the `ext` of the commit in `tools/ext.lock`. |
 | 19 | Does the recording hold only the sample IBAN `DE02120300000000202051` and email addresses on `example.com`, `example.org`, or `example.net`? | `personal-data` in `checks` |
 | 20 | Are the names, account numbers, and amounts in the recording made up? | Maintainer |
 | 21 | Does `README.md` tell which service the package is for and which accounts it fetches? | Maintainer |

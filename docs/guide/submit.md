@@ -124,7 +124,7 @@ Each finding is one line with the file, the line, and the rule. [Rules](rules.md
 The pull request must pass three jobs:
 
 - `checks` runs the tests of the tools and every check on every package.
-- `ext test` replays each recording with `ext`. It runs when `tools/ext.lock` names a commit of `MonetenApp/Moneten`. Until then, GitHub shows it as skipped.
+- `ext test` builds `ext` from the commit of `MonetenApp/Moneten` in `tools/ext.lock` and replays each recording with it. The job also runs the checks of `checks` again.
 - `maintainer sign-off` fails until a maintainer accepts the findings that only a person can judge.
 
 A maintainer then reads the change and approves it. Each new package and each update needs one approval of a maintainer.
@@ -157,7 +157,9 @@ When a maintainer merges the pull request, the workflow `sign` waits for a maint
 
 Moneten installs an update without a question when the setting "Update extensions automatically" is on. The update must also add no host and no login field. The setting is on by default. When it is off, each update waits for the user.
 
-An update that adds a host or a login field waits until the user confirms it in the app. Until then the old version runs. A new host also needs the label `hosts-approved` in the review.
+An update that adds a host or a login field waits until the user confirms it in the app. A new host also needs the label `hosts-approved` in the review.
+
+While an update waits for the user, the extension does not refresh. Its accounts say that the update is needed, for example "Version 1.0 of My Bank is no longer in the catalog. Open Extensions and install the update."
 
 ### Unmaintained packages
 

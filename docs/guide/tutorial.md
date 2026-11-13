@@ -18,7 +18,7 @@ Write the commands in a terminal. Each step starts in the same work folder.
 
 `ext` runs, records, and tests an extension outside the app. It uses the same code as Moneten, so a script that works in `ext` works in the app.
 
-There is no signed release of `ext` yet. Build it from a commit of `MonetenApp/Moneten` that the maintainers checked. The commit is `b6ea16c213dc7909c9c67331d06613a3c8869211`. When `tools/ext.lock` of this repository names a commit, use that commit.
+There is no signed release of `ext` yet. Build it from a commit of `MonetenApp/Moneten` that the maintainers checked. The commit is `b6ea16c213dc7909c9c67331d06613a3c8869211`, the same commit as in `tools/ext.lock` of this repository. When `tools/ext.lock` names a different commit, use that commit.
 
 1. Get the source:
 
