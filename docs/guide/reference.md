@@ -39,7 +39,7 @@ Some signed MoneyMoney extensions use names that the API page does not document.
 | Name | What it does in Moneten |
 | --- | --- |
 | `MM.derdecode(data)` | Returns the DER elements at the top level of `data`, each as `{tag, content}`, with the tag byte as a number. |
-| `MM.base64urldecode(text)` | Decodes Base64url, with or without padding. |
+| `MM.base64urldecode(text)` | Decodes Base64url text. |
 | `connection.redirects` | When it is `false`, the connection does not follow redirects. |
 | The fifth value of `connection:get` | The headers of the answer, as for `connection:request`. |
 | `elements:html()` | Returns the markup of each element in turn. |
@@ -136,7 +136,7 @@ Moneten returns the answer of an error status to the script when any entry of th
 
 ## Limits of a session
 
-The published API gives no limits. Moneten stops a session that goes above one of these limits, with an error that names the limit:
+The published API gives no limits. Moneten stops a call or a session that goes above one of these limits:
 
 | Limit | Value |
 | --- | --- |

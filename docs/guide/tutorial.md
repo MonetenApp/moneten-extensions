@@ -214,7 +214,7 @@ The API gives a list of transactions as JSON. Each item has a date, a descriptio
 	end
 	```
 
-	`?id_lte=12` gets the first 12 items. Other users of SampleAPIs can add items, so the first 12 are the only items that do not change. A debit becomes a negative amount. `since` is the earliest date that Moneten asks for. For a new account it is 0.
+	`?id_lte=12` gets the first 12 items. Other users of SampleAPIs can add and change items until the data resets. The reset occurs on a regular basis. A debit becomes a negative amount. `since` is the earliest date that Moneten asks for. For a new account it is 0.
 
 4. Run the script again:
 
@@ -245,7 +245,7 @@ The API gives a list of transactions as JSON. Each item has a date, a descriptio
 
 	`bookingDate` is a time in seconds since 1970, as the script returns it. The value depends on the time zone of your Mac.
 
-If you see `-113.24` as the balance, the script works.
+If you see `-113.24` as the balance, the script works. If you see a different balance, another user changed an item. The recording in step 4 then holds your values, and the later steps work the same.
 
 ## Step 3: See the host limit
 
@@ -282,7 +282,7 @@ mkdir tutorial/recording
 ext record tutorial tutorial/recording/fixture.json
 ```
 
-Type a word for "Any name". You see:
+Type a word for "Any name". You see the result as in step 2, and then:
 
 ```
 Recorded 1 request.

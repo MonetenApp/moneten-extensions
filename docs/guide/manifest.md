@@ -42,7 +42,7 @@ The name that the Extensions window shows, with 1 to 60 characters.
 
 ## `version`
 
-The version of the package: one to three numbers with dots between them, such as `2.31`. Each change to a file of the package, other than the files in `recording/`, needs a higher version. The check `version` compares the version with `main`. A published version never changes.
+The version of the package. It has one to three numbers with dots between them, such as `2.31`. Each change to a file of the package, other than the files in `recording/`, needs a higher version. The check `version` compares the version with `main`. A published version never changes.
 
 ```json
 {"version": "2.31"}
@@ -147,7 +147,7 @@ The person who answers failure reports for the package. `name` has 1 to 100 char
 {"maintainer": {"name": "Erika Mustermann", "github": "erika-mustermann"}}
 ```
 
-A maintainer can lose the package. This occurs when the maintainer does not answer a reproducible failure for 90 days. Refer to [Updates and adoption](submit.md#updates-and-adoption).
+When the maintainer does not answer a reproducible failure for 90 days, the package becomes unmaintained. Another author can then adopt it. Refer to [Updates and adoption](submit.md#updates-and-adoption).
 
 ## Manifest of a file install
 

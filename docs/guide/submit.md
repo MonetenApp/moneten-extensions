@@ -90,8 +90,11 @@ Replace each value in `fixture.json` and in `expected.json` together, and run `e
 
 ## Run the checks
 
+Run the tests and the checks of all packages. Then check your package with `ext test`:
+
 ```sh
-BASE=origin/main EXT="$(command -v ext)" tools/check-all.sh
+BASE=origin/main tools/check-all.sh
+python3 tools/check_package.py --base origin/main --ext "$(command -v ext)" extensions/my-bank
 ```
 
 Each finding is one line with the file, the line, and the rule. [Rules](rules.md) lists each rule. A finding that needs a label, such as `new-host`, does not fail on your Mac. A maintainer sets the label in the review.
