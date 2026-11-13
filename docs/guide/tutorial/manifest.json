@@ -1,0 +1,15 @@
+{
+  "id": "tutorial",
+  "name": "Sample Fake Bank",
+  "version": "1.0",
+  "description": "Fetches the made-up card transactions of the SampleAPIs fake bank.",
+  "files": ["Tutorial.lua"],
+  "hosts": ["api.sampleapis.com"],
+  "services": [
+    {"name": "Sample Fake Bank", "login": [{"label": "Any name"}]}
+  ],
+  "kinds": ["balances", "transactions"],
+  "apiVersion": 1,
+  "license": "MIT",
+  "maintainer": {"name": "Moneten maintainers", "github": "alexander-schneider"}
+}

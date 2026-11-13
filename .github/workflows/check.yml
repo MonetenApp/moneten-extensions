@@ -81,6 +81,8 @@ jobs:
       - run: tools/setup.sh
       - name: Build ext from the pinned commit
         run: swift build --disable-keychain -c release --product ext --package-path .cache/moneten
-      - run: tools/check-all.sh
-        env:
-          EXT: .cache/moneten/.build/release/ext
+      - name: Require the ext binary
+        run: .cache/moneten/.build/release/ext --version
+      # Only the replays run here. The job checks runs the tests of the tools, whose signing tests need OpenSSL 3.
+      - name: Replay every recording with ext
+        run: python3 tools/check_package.py --ext .cache/moneten/.build/release/ext extensions/*/ docs/guide/tutorial

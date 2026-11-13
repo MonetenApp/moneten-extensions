@@ -37,6 +37,23 @@ def steps(job):
     return re.split(r"\n      - ", job)[1:]
 
 
+def test_ext_lock_pins_a_full_commit():
+    lock = (WORKFLOWS.parent.parent / "tools" / "ext.lock").read_text()
+    assert re.search(r"(?m)^commit=[0-9a-f]{40}$", lock)
+
+
+def test_ext_test_replays_every_recording_only_with_a_built_ext():
+    job_steps = steps(jobs("check.yml")["ext-test"])
+    names = [step.split("\n")[0] for step in job_steps]
+    build = names.index("name: Build ext from the pinned commit")
+    binary = names.index("name: Require the ext binary")
+    replay = names.index("name: Replay every recording with ext")
+    assert build < binary < replay
+    assert "run: .cache/moneten/.build/release/ext --version" in job_steps[binary]
+    assert "run: python3 tools/check_package.py --ext .cache/moneten/.build/release/ext extensions/*/ docs/guide/tutorial" in job_steps[replay]
+    assert "check-all.sh" not in jobs("check.yml")["ext-test"]
+
+
 def test_sign_off_counts_only_labels_that_a_maintainer_bound_to_the_head():
     job = jobs("sign-off.yml")["sign-off"]
     assert "trusted/tools/fresh_labels.py" in job
