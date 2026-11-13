@@ -18,14 +18,14 @@ Write the commands in a terminal. Each step starts in the same work folder.
 
 `ext` runs, records, and tests an extension outside the app. It uses the same code as Moneten, so a script that works in `ext` works in the app.
 
-There is no signed release of `ext` yet. Build it from a commit of `MonetenApp/Moneten` that the maintainers checked. The commit is `6fbfd21fbae4b580c2800182a9738b3099de1416`. When `tools/ext.lock` of this repository names a commit, use that commit.
+There is no signed release of `ext` yet. Build it from a commit of `MonetenApp/Moneten` that the maintainers checked. The commit is `b6ea16c213dc7909c9c67331d06613a3c8869211`. When `tools/ext.lock` of this repository names a commit, use that commit.
 
 1. Get the source:
 
 	```sh
 	git clone https://github.com/MonetenApp/Moneten.git moneten
 	cd moneten
-	git checkout --detach 6fbfd21fbae4b580c2800182a9738b3099de1416
+	git checkout --detach b6ea16c213dc7909c9c67331d06613a3c8869211
 	```
 
 2. Make sure that you have the correct commit, and that it is on `main`:
@@ -35,7 +35,7 @@ There is no signed release of `ext` yet. Build it from a commit of `MonetenApp/M
 	git merge-base --is-ancestor HEAD origin/main && echo "on main"
 	```
 
-	The first command must print `6fbfd21fbae4b580c2800182a9738b3099de1416`. The second command must print `on main`. If one of them prints a different result, stop and open an issue.
+	The first command must print `b6ea16c213dc7909c9c67331d06613a3c8869211`. The second command must print `on main`. If one of them prints a different result, stop and open an issue.
 
 3. Build `ext`:
 
