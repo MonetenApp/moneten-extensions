@@ -41,6 +41,20 @@ The [author guide](docs/guide/) tells how to write, test, and submit an extensio
 - [Submit an extension](docs/guide/submit.md): the pull request, the review, updates, and adoption.
 - [From MoneyMoney to Moneten](docs/guide/from-moneymoney.md): add a manifest to an existing MoneyMoney extension.
 
+## Tools
+
+`ext` is the command line tool for extension authors. It runs an extension outside the app with the same code as Moneten, so a script that works in `ext` works in the app.
+
+| Command | What it does |
+| --- | --- |
+| `ext run <script>` | Runs the script against the real service and prints the result as JSON. |
+| `ext record <script> <fixture>` | Runs the script and saves its HTTP traffic without secrets in a fixture file. |
+| `ext test <script> <fixture> <expected>` | Replays the fixture without a network and compares the result with the expected file. |
+
+`ext` is released in the [Moneten repository](https://github.com/MonetenApp/Moneten) under tags of the form `ext-vX.Y.Z`. The [releases of ext](https://github.com/MonetenApp/Moneten/releases?q=ext-v&expanded=true) show the newest one first. Each release has one zip with a universal binary for Apple silicon and Intel Macs with macOS 15 or later, signed with the Developer ID of the project and notarized by Apple. The release notes give the SHA-256 of the zip, and the file `ext-<version>-macos.zip.sha256` of the release holds it too.
+
+Use the release that [tools/ext.lock](tools/ext.lock) names. It gives the version, the commit, the URL of the zip, and its SHA-256. The job `ext test` of this repository downloads that release, checks it, and replays the recording of each package with it. [Install ext](docs/guide/tutorial.md#install-ext) in the tutorial gives the commands to download the zip, check its SHA-256 with `shasum -a 256 -c`, unzip it, and check the output of `ext --version`.
+
 ## Contribute
 
 [Contributing](CONTRIBUTING.md) says how to submit an extension and run the checks. [Governance](GOVERNANCE.md) says how the review, the signing, and the states of a package work.
