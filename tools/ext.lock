@@ -1,6 +1,7 @@
 # The signed release of ext that the job ext test downloads and runs. tools/ext_lock.py reads this file.
 # version: the release ext-v<version> of MonetenApp/Moneten. commit: the commit of that tag, on main.
-# url: the zip of the release. sha256: the SHA-256 of the zip. Leave all four empty to skip the job.
+# url: the zip of the release. sha256: the SHA-256 of the zip. All four empty skip the job, but the test
+# test_the_lock_of_the_repository_pins_a_release in tools/tests/test_ext_lock.py then fails, so change it as well.
 version=0.1.0
 commit=efda52da39625e4502541835e40b1b1bd7ee1dbe
 url=https://github.com/MonetenApp/Moneten/releases/download/ext-v0.1.0/ext-0.1.0-macos.zip

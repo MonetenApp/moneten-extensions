@@ -52,17 +52,13 @@ def test_ext_test_replays_every_recording_only_with_the_checked_release():
     job_steps = steps(job)
     names = [step.split("\n")[0] for step in job_steps]
     on_main = names.index("name: Require the tag of the release on main of MonetenApp/Moneten")
-    download = names.index("name: Download the pinned release of ext")
-    version = names.index("name: Require the pinned version and commit")
+    fetch = names.index("name: Fetch and check the pinned release of ext")
     replay = names.index("name: Replay every recording with ext")
-    assert on_main < download < version < replay
-    assert "curl -fsSL --proto '=https' --tlsv1.2 --retry 3 -o .cache/ext.zip \"$URL\"" in job_steps[download]
-    assert 'echo "$SHA256  .cache/ext.zip" | shasum -a 256 -c' in job_steps[download]
-    assert job_steps[download].index("shasum") < job_steps[download].index("unzip")
-    assert '"ext $VERSION (commit $COMMIT), API version "*' in job_steps[version]
+    assert on_main < fetch < replay
+    assert "run: tools/fetch_ext.sh .cache" in job_steps[fetch]
     assert "run: python3 tools/check_package.py --ext .cache/ext/ext extensions/*/ docs/guide/tutorial" in job_steps[replay]
-    assert "swift build" not in job
-    assert "check-all.sh" not in job
+    for command in ("curl", "unzip", "shasum", ".cache/ext/ext --version", "swift build", "check-all.sh"):
+        assert command not in job, command
 
 
 def test_sign_off_counts_only_labels_that_a_maintainer_bound_to_the_head():

@@ -76,24 +76,10 @@ jobs:
             exit 1
           fi
           git -C .cache/moneten merge-base --is-ancestor "$COMMIT" origin/main
-      - name: Download the pinned release of ext
-        run: |
-          mkdir -p .cache/ext
-          curl -fsSL --proto '=https' --tlsv1.2 --retry 3 -o .cache/ext.zip "$URL"
-          echo "$SHA256  .cache/ext.zip" | shasum -a 256 -c
-          unzip -q .cache/ext.zip -d .cache/ext
-          if [[ "$(ls -A .cache/ext)" != ext ]]; then
-            echo "::error file=tools/ext.lock::The zip of the release holds more than ext."
-            exit 1
-          fi
-      - name: Require the pinned version and commit
-        run: |
-          line="$(.cache/ext/ext --version)"
-          echo "$line"
-          if [[ "$line" != "ext $VERSION (commit $COMMIT), API version "* ]]; then
-            echo "::error file=tools/ext.lock::ext names another version or commit than tools/ext.lock."
-            exit 1
-          fi
+      # tools/fetch_ext.sh checks the SHA-256, the one entry of the zip, the signature, and ext --version before the
+      # recordings run.
+      - name: Fetch and check the pinned release of ext
+        run: tools/fetch_ext.sh .cache
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
