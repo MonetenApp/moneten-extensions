@@ -13,9 +13,11 @@
 # extracted, because unzip follows no rule of ours: it writes a link, and it turns ../ext into ext.
 set -euo pipefail
 
-# The team ID of the Developer ID of the project.
+# The team ID of the Developer ID of the project. The two fields admit only a Developer ID Application
+# certificate: the first marks the Developer ID intermediate, the second the leaf. Without them, the
+# Apple Development and Apple Distribution certificates of the team would pass as well.
 TEAM=39945LJS7U
-REQUIREMENT="=anchor apple generic and certificate leaf[subject.OU] = \"$TEAM\""
+REQUIREMENT="=anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] exists and certificate leaf[field.1.2.840.113635.100.6.1.13] exists and certificate leaf[subject.OU] = \"$TEAM\""
 
 fail() {
 	echo "::error file=tools/ext.lock::$1" >&2
@@ -42,14 +44,15 @@ fi
 actual="$(shasum -a 256 "$zip" | cut -d' ' -f1)"
 [[ "$actual" == "$SHA256" ]] || fail "The zip has the SHA-256 $actual, not the SHA-256 in tools/ext.lock."
 
-# The trailing dot keeps a newline at the end of a name, which $(...) would drop.
-entries="$(zipinfo -1 "$zip"; echo .)" || fail "zipinfo cannot read the zip."
+# The trailing dot keeps a newline at the end of a name, which $(...) would drop. It follows only a
+# zipinfo that succeeded, so a failed zipinfo fails the script and never passes on its partial output.
+entries="$(zipinfo -1 "$zip" && echo .)" || fail "zipinfo cannot read the zip."
 [[ "$entries" == $'ext\n.' ]] || fail "The zip must hold exactly one entry, ext, and no path or second entry."
 listing="$(zipinfo -s "$zip" ext)" || fail "zipinfo cannot list the entry ext."
 [[ "$listing" == -* ]] || fail "The entry ext must be a regular file, not a link or a folder: $listing"
 
 mkdir "$dir/ext"
-unzip -q "$zip" ext -d "$dir/ext"
+unzip -q "$zip" ext -d "$dir/ext" || fail "unzip could not extract ext."
 [[ "$(ls -A "$dir/ext")" == ext && -f "$bin" && ! -L "$bin" ]] || fail "The zip did not extract to one regular file ext."
 
 codesign --verify --strict -R "$REQUIREMENT" "$bin" || fail "ext is not signed with the Developer ID of team $TEAM."

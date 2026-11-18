@@ -32,15 +32,22 @@ def build(path, *entries):
     return path
 
 
-def run(tmp_path, zip_path, sha256=None, codesign=None):
+def run(tmp_path, zip_path, sha256=None, codesign=None, zipinfo=None):
+    """codesign: the exit status of a stub in place of codesign. zipinfo: the text of a stub in place of zipinfo."""
     env = dict(os.environ, VERSION=VERSION, COMMIT=COMMIT, URL=URL,
                SHA256=sha256 or hashlib.sha256(zip_path.read_bytes()).hexdigest())
+    stubs = {}
     if codesign is not None:
-        stubs = tmp_path / "stubs"
-        stubs.mkdir()
-        (stubs / "codesign").write_text(f"#!/bin/sh\nexit {codesign}\n")
-        (stubs / "codesign").chmod(0o755)
-        env["PATH"] = f"{stubs}{os.pathsep}{env['PATH']}"
+        stubs["codesign"] = f"#!/bin/sh\nexit {codesign}\n"
+    if zipinfo is not None:
+        stubs["zipinfo"] = zipinfo
+    if stubs:
+        folder = tmp_path / "stubs"
+        folder.mkdir()
+        for name, text in stubs.items():
+            (folder / name).write_text(text)
+            (folder / name).chmod(0o755)
+        env["PATH"] = f"{folder}{os.pathsep}{env['PATH']}"
     return subprocess.run([str(SCRIPT), str(tmp_path / "cache"), str(zip_path)], env=env,
                           capture_output=True, text=True)
 
@@ -73,6 +80,16 @@ def test_a_zip_with_another_hash_fails_before_it_is_read(tmp_path):
     assert not (tmp_path / "cache" / "ext").exists()
 
 
+def test_a_failed_zipinfo_fails_before_extraction_even_when_it_prints_ext(tmp_path):
+    marker = tmp_path / "ran"
+    zip_path = build(tmp_path / "ext.zip", ("ext", f"#!/bin/sh\ntouch '{marker}'\necho '{VERSION_LINE}'\n".encode(), FILE))
+    result = run(tmp_path, zip_path, codesign=0, zipinfo="#!/bin/sh\necho ext\nexit 9\n")
+    assert result.returncode == 1
+    assert "zipinfo cannot read the zip." in result.stderr
+    assert not (tmp_path / "cache" / "ext").exists()
+    assert not marker.exists()
+
+
 def test_an_unsigned_ext_fails_the_signature_check_before_it_runs(tmp_path):
     marker = tmp_path / "ran"
     zip_path = build(tmp_path / "ext.zip", ("ext", f"#!/bin/sh\ntouch '{marker}'\n".encode(), FILE))
@@ -101,6 +118,9 @@ def test_a_good_zip_gives_one_regular_file_ext(tmp_path):
 def test_the_signature_check_names_the_developer_id_of_the_project():
     text = SCRIPT.read_text()
     assert "TEAM=39945LJS7U" in text
-    assert 'REQUIREMENT="=anchor apple generic and certificate leaf[subject.OU] = \\"$TEAM\\""' in text
+    assert ('REQUIREMENT="=anchor apple generic'
+            ' and certificate 1[field.1.2.840.113635.100.6.2.6] exists'
+            ' and certificate leaf[field.1.2.840.113635.100.6.1.13] exists'
+            ' and certificate leaf[subject.OU] = \\"$TEAM\\""') in text
     assert 'codesign --verify --strict -R "$REQUIREMENT" "$bin"' in text
     assert "curl -fsSL --proto '=https' --tlsv1.2 --retry 3" in text
