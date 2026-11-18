@@ -27,9 +27,9 @@ def test_python_packages_are_installed_by_hash():
         assert "pip install" not in path.read_text(), path.name
 
 
-def test_ext_test_is_skipped_as_a_job_while_ext_lock_pins_no_commit():
+def test_ext_test_is_skipped_as_a_job_while_ext_lock_pins_no_release():
     job = jobs("check.yml")["ext-test"]
-    assert re.search(r"(?m)^    if: needs\.checks\.outputs\.ext-commit != ''$", job)
+    assert re.search(r"(?m)^    if: needs\.checks\.outputs\.ext-version != ''$", job)
     assert "echo \"::notice" not in job
 
 
@@ -37,21 +37,32 @@ def steps(job):
     return re.split(r"\n      - ", job)[1:]
 
 
-def test_ext_lock_pins_a_full_commit():
-    lock = (WORKFLOWS.parent.parent / "tools" / "ext.lock").read_text()
-    assert re.search(r"(?m)^commit=[0-9a-f]{40}$", lock)
+def test_checks_reads_ext_lock_only_through_its_parser():
+    found = jobs("check.yml")
+    lock = next(s for s in steps(found["checks"]) if s.startswith("id: ext-lock"))
+    assert 'run: python3 tools/ext_lock.py >> "$GITHUB_OUTPUT"' in lock
+    assert "ext.lock" not in found["checks"].replace("tools/ext.lock", "").replace("tools/ext_lock.py", "")
+    for field in ("version", "commit", "url", "sha256"):
+        assert f"ext-{field}: ${{{{ steps.ext-lock.outputs.{field} }}}}" in found["checks"]
+        assert f"${{{{ needs.checks.outputs.ext-{field} }}}}" in found["ext-test"]
 
 
-def test_ext_test_replays_every_recording_only_with_a_built_ext():
-    job_steps = steps(jobs("check.yml")["ext-test"])
+def test_ext_test_replays_every_recording_only_with_the_checked_release():
+    job = jobs("check.yml")["ext-test"]
+    job_steps = steps(job)
     names = [step.split("\n")[0] for step in job_steps]
-    build = names.index("name: Build ext from the pinned commit")
-    binary = names.index("name: Require the ext binary")
+    on_main = names.index("name: Require the tag of the release on main of MonetenApp/Moneten")
+    download = names.index("name: Download the pinned release of ext")
+    version = names.index("name: Require the pinned version and commit")
     replay = names.index("name: Replay every recording with ext")
-    assert build < binary < replay
-    assert "run: .cache/moneten/.build/release/ext --version" in job_steps[binary]
-    assert "run: python3 tools/check_package.py --ext .cache/moneten/.build/release/ext extensions/*/ docs/guide/tutorial" in job_steps[replay]
-    assert "check-all.sh" not in jobs("check.yml")["ext-test"]
+    assert on_main < download < version < replay
+    assert "curl -fsSL --proto '=https' --tlsv1.2 --retry 3 -o .cache/ext.zip \"$URL\"" in job_steps[download]
+    assert 'echo "$SHA256  .cache/ext.zip" | shasum -a 256 -c' in job_steps[download]
+    assert job_steps[download].index("shasum") < job_steps[download].index("unzip")
+    assert '"ext $VERSION (commit $COMMIT), API version "*' in job_steps[version]
+    assert "run: python3 tools/check_package.py --ext .cache/ext/ext extensions/*/ docs/guide/tutorial" in job_steps[replay]
+    assert "swift build" not in job
+    assert "check-all.sh" not in job
 
 
 def test_sign_off_counts_only_labels_that_a_maintainer_bound_to_the_head():
@@ -125,11 +136,11 @@ def test_actions_are_pinned_to_a_commit():
             assert re.fullmatch(r"[\w-]+/[\w-]+@[0-9a-f]{40}", action), (path.name, action)
 
 
-def test_ext_test_builds_only_main_of_the_app_repository():
+def test_ext_test_runs_only_a_release_tagged_on_main_of_the_app_repository():
     found = jobs("check.yml")
     assert "repository=" not in (WORKFLOWS.parent.parent / "tools" / "ext.lock").read_text()
-    assert "ext-repository" not in found["checks"]
-    assert "^[0-9a-f]{40}$" in found["checks"]
-    app = next(s for s in steps(found["ext-test"]) if "path: .cache/moneten" in s)
-    assert "repository: MonetenApp/Moneten\n" in app
-    assert "merge-base --is-ancestor" in found["ext-test"]
+    on_main = next(s for s in steps(found["ext-test"]) if s.startswith("name: Require the tag of the release on main"))
+    assert "https://github.com/MonetenApp/Moneten.git" in on_main
+    assert '"+refs/tags/ext-v$VERSION:refs/tags/ext-v$VERSION"' in on_main
+    assert '"$tagged" != "$COMMIT"' in on_main
+    assert 'merge-base --is-ancestor "$COMMIT" origin/main' in on_main

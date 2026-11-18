@@ -13,7 +13,9 @@ The [author guide](docs/guide/) tells how to write an extension. [Submit an exte
 5. Record one run of the script with `ext record` into `recording/fixture.json`, and save its result as `recording/expected.json`. Replace names, account numbers, and amounts that belong to you. Use the IBAN `DE02120300000000202051` and email addresses on `example.com`.
 6. Open a pull request. Each later change to a file of the package needs a higher `version` in the manifest.
 
-The `ext` tool comes from the [Moneten repository](https://github.com/MonetenApp/Moneten). The job `ext test` builds it from the commit in `tools/ext.lock` and replays each recording. When the file names no commit, the job is skipped, and the pull request shows it as skipped.
+The `ext` tool comes from the [Moneten repository](https://github.com/MonetenApp/Moneten) as a signed release. [Install ext](docs/guide/tutorial.md#install-ext) tells how to download it. The job `ext test` downloads the release in `tools/ext.lock`, checks its SHA-256, its version, and its commit, and replays each recording. When all fields of the file are empty, the job is skipped, and the pull request shows it as skipped.
+
+To pin a newer release, write its version, its commit, the URL of its zip, and the SHA-256 of the zip into `tools/ext.lock`. The release notes give the SHA-256. `tools/ext_lock.py` refuses a field of the wrong form, and `ext test` fails when the tag of the release does not name the commit on `main`, or when `ext --version` names another version or commit.
 
 ## Run the checks on your Mac
 

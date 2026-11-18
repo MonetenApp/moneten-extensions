@@ -57,7 +57,7 @@ The checks only help when a pull request cannot skip them.
 1. In **Settings**, click **Branches**, then **Add classic branch protection rule**. Type `main` as the branch name pattern.
 2. Select **Require a pull request before merging**, **Require approvals** with 1, and **Require review from Code Owners**.
 3. Select **Dismiss stale pull request approvals when new commits are pushed** and **Require approval of the most recent reviewable push**. An approval then covers only the commits that the maintainer read.
-4. Select **Require status checks to pass before merging** and add `checks` and `maintainer sign-off`. Add `ext test` when `tools/ext.lock` pins a commit. Until then the job is skipped, and GitHub counts a skipped required check as passed. The workflow `sign-off` runs as `main` has it, so `maintainer sign-off` first appears on pull requests opened or updated after the workflow is on `main`.
+4. Select **Require status checks to pass before merging** and add `checks` and `maintainer sign-off`. Add `ext test` as well. It runs while `tools/ext.lock` pins a release of `ext`. A lock with empty fields skips the job, and GitHub counts a skipped required check as passed. The workflow `sign-off` runs as `main` has it, so `maintainer sign-off` first appears on pull requests opened or updated after the workflow is on `main`.
 5. Click **Create**.
 
 GitHub does not count the approval of a pull request's author. While you are the only maintainer, leave **Do not allow bypassing the above settings** cleared, so that you can merge your own pull requests as an admin.

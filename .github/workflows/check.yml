@@ -23,7 +23,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
+      ext-version: ${{ steps.ext-lock.outputs.version }}
       ext-commit: ${{ steps.ext-lock.outputs.commit }}
+      ext-url: ${{ steps.ext-lock.outputs.url }}
+      ext-sha256: ${{ steps.ext-lock.outputs.sha256 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -41,48 +44,62 @@ jobs:
       - run: tools/setup.sh
       - run: tools/check-all.sh
       - id: ext-lock
-        name: Read the commit of MonetenApp/Moneten in tools/ext.lock
-        run: |
-          commit="$(sed -n 's/^commit=//p' tools/ext.lock)"
-          if [[ -n "$commit" && ! "$commit" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "::error file=tools/ext.lock::commit must be empty or a full commit of MonetenApp/Moneten."
-            exit 1
-          fi
-          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+        name: Read the release of ext in tools/ext.lock
+        run: python3 tools/ext_lock.py >> "$GITHUB_OUTPUT"
 
   ext-test:
     name: ext test
     needs: checks
-    # Skipped, and shown as skipped, until tools/ext.lock pins a commit of the app repository that has ext.
-    if: needs.checks.outputs.ext-commit != ''
+    # Skipped, and shown as skipped, while tools/ext.lock pins no release of ext.
+    if: needs.checks.outputs.ext-version != ''
     runs-on: macos-15
-    timeout-minutes: 30
+    timeout-minutes: 20
+    env:
+      VERSION: ${{ needs.checks.outputs.ext-version }}
+      COMMIT: ${{ needs.checks.outputs.ext-commit }}
+      URL: ${{ needs.checks.outputs.ext-url }}
+      SHA256: ${{ needs.checks.outputs.ext-sha256 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
           persist-credentials: false
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: MonetenApp/Moneten
-          ref: ${{ needs.checks.outputs.ext-commit }}
-          path: .cache/moneten
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Require a commit on main of MonetenApp/Moneten
-        env:
-          COMMIT: ${{ needs.checks.outputs.ext-commit }}
-        run: git -C .cache/moneten merge-base --is-ancestor "$COMMIT" origin/main
+      # The release workflow of MonetenApp/Moneten checks the same. This check costs one fetch of the commits without
+      # their files, and keeps a lock that names a commit of another branch from passing.
+      - name: Require the tag of the release on main of MonetenApp/Moneten
+        run: |
+          git init -q .cache/moneten
+          git -C .cache/moneten fetch -q --no-tags --filter=tree:0 https://github.com/MonetenApp/Moneten.git \
+            "+refs/heads/main:refs/remotes/origin/main" "+refs/tags/ext-v$VERSION:refs/tags/ext-v$VERSION"
+          tagged="$(git -C .cache/moneten rev-parse "refs/tags/ext-v$VERSION^{commit}")"
+          if [[ "$tagged" != "$COMMIT" ]]; then
+            echo "::error file=tools/ext.lock::The tag ext-v$VERSION names $tagged, not the commit $COMMIT."
+            exit 1
+          fi
+          git -C .cache/moneten merge-base --is-ancestor "$COMMIT" origin/main
+      - name: Download the pinned release of ext
+        run: |
+          mkdir -p .cache/ext
+          curl -fsSL --proto '=https' --tlsv1.2 --retry 3 -o .cache/ext.zip "$URL"
+          echo "$SHA256  .cache/ext.zip" | shasum -a 256 -c
+          unzip -q .cache/ext.zip -d .cache/ext
+          if [[ "$(ls -A .cache/ext)" != ext ]]; then
+            echo "::error file=tools/ext.lock::The zip of the release holds more than ext."
+            exit 1
+          fi
+      - name: Require the pinned version and commit
+        run: |
+          line="$(.cache/ext/ext --version)"
+          echo "$line"
+          if [[ "$line" != "ext $VERSION (commit $COMMIT), API version "* ]]; then
+            echo "::error file=tools/ext.lock::ext names another version or commit than tools/ext.lock."
+            exit 1
+          fi
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: tools/requirements.txt
       - run: tools/setup.sh
-      - name: Build ext from the pinned commit
-        run: swift build --disable-keychain -c release --product ext --package-path .cache/moneten
-      - name: Require the ext binary
-        run: .cache/moneten/.build/release/ext --version
       # Only the replays run here. The job checks runs the tests of the tools, whose signing tests need OpenSSL 3.
       - name: Replay every recording with ext
-        run: python3 tools/check_package.py --ext .cache/moneten/.build/release/ext extensions/*/ docs/guide/tutorial
+        run: python3 tools/check_package.py --ext .cache/ext/ext extensions/*/ docs/guide/tutorial
