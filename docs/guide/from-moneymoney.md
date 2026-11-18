@@ -4,7 +4,7 @@ Most MoneyMoney extensions run in Moneten without a change to the script. To put
 
 You need `ext` ([Install ext](tutorial.md#install-ext)) and a fork of this repository ([Fork the repository](submit.md#fork-the-repository)).
 
-This walkthrough needs an `ext` from commit `b6ea16c` of `MonetenApp/Moneten` or later, as [Install ext](tutorial.md#install-ext) builds it. Monzo builds the query of a request with `pairs()`, so the sequence of its parameters changes from run to run. An older `ext` can then miss a request in the replay.
+This walkthrough needs `ext` 0.1.0 or later, as [Install ext](tutorial.md#install-ext) downloads it. Monzo builds the query of a request with `pairs()`, so the sequence of its parameters changes from run to run. An older `ext` can then miss a request in the replay.
 
 ## Step 1: Get the script
 

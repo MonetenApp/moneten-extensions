@@ -8,9 +8,8 @@ Each step ends with a command and the output that you see. The finished package 
 
 You need:
 
-- A Mac with macOS 15 or later.
-- Xcode 16.3 or later, or the Swift 6.1 toolchain.
-- A connection to the internet for steps 2 and 4.
+- A Mac with macOS 15 or later, with Apple silicon or Intel. You do not need Xcode.
+- A connection to the internet to install `ext` and for steps 2 and 4.
 
 Write the commands in a terminal. Each step starts in the same work folder.
 
@@ -18,46 +17,47 @@ Write the commands in a terminal. Each step starts in the same work folder.
 
 `ext` runs, records, and tests an extension outside the app. It uses the same code as Moneten, so a script that works in `ext` works in the app.
 
-There is no signed release of `ext` yet. Build it from a commit of `MonetenApp/Moneten` that the maintainers checked. The commit is `b6ea16c213dc7909c9c67331d06613a3c8869211`, the same commit as in `tools/ext.lock` of this repository. When `tools/ext.lock` names a different commit, use that commit.
+Download the signed release of `ext` that `tools/ext.lock` of this repository names. It is version 0.1.0, built from the commit `efda52da39625e4502541835e40b1b1bd7ee1dbe` of `MonetenApp/Moneten`. It is one binary for Apple silicon and Intel Macs, signed with the Developer ID of the project and notarized by Apple. When `tools/ext.lock` names a different release, use the values of that file.
 
-1. Get the source:
+1. Make a folder for `ext` and download the release into it:
 
 	```sh
-	git clone https://github.com/MonetenApp/Moneten.git moneten
-	cd moneten
-	git checkout --detach b6ea16c213dc7909c9c67331d06613a3c8869211
+	mkdir -p ~/ext && cd ~/ext
+	curl -fLO https://github.com/MonetenApp/Moneten/releases/download/ext-v0.1.0/ext-0.1.0-macos.zip
 	```
 
-2. Make sure that you have the correct commit, and that it is on `main`:
+2. Check the SHA-256 of the zip:
 
 	```sh
-	git rev-parse HEAD
-	git merge-base --is-ancestor HEAD origin/main && echo "on main"
+	echo "0e651a3247551bb11a94f9693136b88816a328b139cf626c7036aee740ab1ee7  ext-0.1.0-macos.zip" | shasum -a 256 -c
 	```
 
-	The first command must print `b6ea16c213dc7909c9c67331d06613a3c8869211`. The second command must print `on main`. If one of them prints a different result, stop and open an issue.
+	You see `ext-0.1.0-macos.zip: OK`. If you see `FAILED`, delete the zip, stop, and open an issue.
 
-3. Build `ext`:
-
-	```sh
-	swift build --disable-keychain -c release --product ext
-	```
-
-	The option `--disable-keychain` stops a Keychain prompt that SwiftPM can wait for without a message.
-
-4. Put `ext` in your path and go back to the work folder:
+3. Unzip it and check the version:
 
 	```sh
-	export PATH="$PWD/.build/release:$PATH"
-	cd ..
-	ext --version
+	unzip ext-0.1.0-macos.zip
+	./ext --version
 	```
 
 	You see:
 
 	```
-	ext 0.1.0, API version 1
+	ext 0.1.0 (commit efda52da39625e4502541835e40b1b1bd7ee1dbe), API version 1
 	```
+
+	If the version or the commit is different, stop and open an issue.
+
+4. Put `ext` in your path and go back to the work folder:
+
+	```sh
+	export PATH="$HOME/ext:$PATH"
+	cd -
+	ext --version
+	```
+
+	You see the same line as in step 3.
 
 `export` changes the path only in this terminal window. Write the line into `~/.zshrc` to keep it.
 
