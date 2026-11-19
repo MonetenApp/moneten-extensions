@@ -1,0 +1,21 @@
+{
+  "id": "monzo",
+  "name": "Monzo",
+  "version": "0.91",
+  "description": "Balances and transactions of Monzo current and joint accounts through the Monzo API, with an OAuth login in the browser.",
+  "files": ["Monzo.lua"],
+  "hosts": ["api.monzo.com", "auth.monzo.com"],
+  "services": [
+    {
+      "name": "Monzo",
+      "login": [
+        {"label": "Client ID"},
+        {"label": "Client secret", "secret": true}
+      ]
+    }
+  ],
+  "kinds": ["balances", "transactions"],
+  "apiVersion": 1,
+  "license": "MIT",
+  "maintainer": {"name": "Moneten maintainers", "github": "alexander-schneider"}
+}

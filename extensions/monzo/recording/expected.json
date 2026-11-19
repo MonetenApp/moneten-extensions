@@ -1,0 +1,89 @@
+{
+  "accounts" : [
+    {
+      "accountNumber" : "01234567 ",
+      "balance" : 1875.66,
+      "bankCode" : "04-00-04",
+      "currency" : "GBP",
+      "name" : "Monzo",
+      "owner" : "Robin Example",
+      "portfolio" : false,
+      "subAccount" : "acc_0000Ex4mpleMain00001",
+      "transactions" : [
+        {
+          "amount" : 2500,
+          "booked" : true,
+          "bookingDate" : 1793607302,
+          "bookingKey" : "dd_0000Ex4mpleTx0001",
+          "bookingText" : "",
+          "currency" : "GBP",
+          "name" : "Top up",
+          "purpose" : "Monzo top up",
+          "purposeCode" : "general",
+          "valueDate" : 1793607302
+        },
+        {
+          "amount" : -12.45,
+          "booked" : true,
+          "bookingDate" : 1793796093,
+          "bookingKey" : "dd_0000Ex4mpleTx0002",
+          "bookingText" : "",
+          "currency" : "GBP",
+          "name" : "Corner Bakery",
+          "purpose" : "CORNER BAKERY LONDON",
+          "purposeCode" : "eating_out",
+          "valueDate" : 1793848211
+        },
+        {
+          "amount" : -21.89,
+          "booked" : true,
+          "bookingDate" : 1793991767,
+          "bookingKey" : "dd_0000Ex4mpleTx0003",
+          "bookingText" : "",
+          "currency" : "GBP",
+          "name" : "Café Exemple",
+          "purpose" : "CAFE EXEMPLE PARIS\nConverted from -25.0EUR",
+          "purposeCode" : "eating_out",
+          "valueDate" : 1794103200
+        },
+        {
+          "amount" : -9.99,
+          "booked" : false,
+          "bookingDate" : 1794173400,
+          "bookingKey" : "dd_0000Ex4mpleTx0004",
+          "bookingText" : "Monthly plan",
+          "currency" : "GBP",
+          "name" : "Streaming Service",
+          "purpose" : "STREAMING SERVICE",
+          "purposeCode" : "entertainment"
+        }
+      ],
+      "type" : "AccountTypeGiro"
+    },
+    {
+      "accountNumber" : "07654321 ",
+      "balance" : 3420.1,
+      "bankCode" : "04-00-04",
+      "currency" : "GBP",
+      "name" : "Monzo Joint Account",
+      "owner" : "Robin Example & Sam Sample",
+      "portfolio" : false,
+      "subAccount" : "acc_0000Ex4mpleJoint0002",
+      "transactions" : [
+        {
+          "amount" : -1200,
+          "booked" : true,
+          "bookingDate" : 1793700000,
+          "bookingKey" : "dd_0000Ex4mpleTx0101",
+          "bookingText" : "Flat 2",
+          "currency" : "GBP",
+          "name" : "Rent November",
+          "purpose" : "Rent November",
+          "purposeCode" : "bills",
+          "valueDate" : 1793700000
+        }
+      ],
+      "type" : "AccountTypeGiro"
+    }
+  ]
+}
