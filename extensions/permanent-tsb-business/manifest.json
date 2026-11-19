@@ -1,0 +1,21 @@
+{
+  "id": "permanent-tsb-business",
+  "name": "Permanent TSB Business",
+  "version": "1.05",
+  "description": "Balances and transactions of business current accounts at Permanent TSB, read from the web banking at business24.ie.",
+  "files": ["Permanent-TSB-Business.lua"],
+  "hosts": ["www.business24.ie"],
+  "services": [
+    {
+      "name": "Permanent TSB Business",
+      "login": [
+        {"label": "Login number"},
+        {"label": "Password-PAN", "secret": true}
+      ]
+    }
+  ],
+  "kinds": ["balances", "transactions"],
+  "apiVersion": 1,
+  "license": "MIT",
+  "maintainer": {"name": "Moneten maintainers", "github": "alexander-schneider"}
+}

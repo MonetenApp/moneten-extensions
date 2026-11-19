@@ -1,0 +1,67 @@
+{
+  "accounts" : [
+    {
+      "accountNumber" : "4821",
+      "balance" : 12480.55,
+      "currency" : "EUR",
+      "name" : "Business Current Account",
+      "transactions" : [
+        {
+          "amount" : 1850,
+          "booked" : true,
+          "bookingDate" : 1794052800,
+          "bookingText" : "Credit Transfer",
+          "endToEndReference" : "HD-2026-118",
+          "name" : "Harbour Design Ltd",
+          "purpose" : "Invoice 2026-118 Thank you"
+        },
+        {
+          "amount" : -14.2,
+          "booked" : true,
+          "bookingDate" : 1793880000,
+          "bookingText" : "Debit Card Transaction",
+          "name" : "CORNER CAFE DUBLIN"
+        },
+        {
+          "amount" : -212.48,
+          "booked" : true,
+          "bookingDate" : 1793707200,
+          "bookingText" : "Direct Debit",
+          "name" : "DUBLIN UTILITIES"
+        },
+        {
+          "amount" : -349.99,
+          "booked" : true,
+          "bookingDate" : 1793188800,
+          "bookingText" : "Credit Transfer",
+          "endToEndReference" : "OSD-77120",
+          "name" : "Office Supplies Direct",
+          "purpose" : "Order 77120 paper and toner"
+        },
+        {
+          "amount" : -8.65,
+          "booked" : false,
+          "bookingDate" : 1794225600,
+          "bookingText" : "Debit Card Transaction (Contactless)",
+          "name" : "FRESH MARKET"
+        }
+      ],
+      "type" : "AccountTypeGiro"
+    },
+    {
+      "accountNumber" : "7730",
+      "balance" : 25000,
+      "currency" : "EUR",
+      "name" : "Business Deposit Account",
+      "transactions" : [
+        {
+          "amount" : 4.17,
+          "booked" : true,
+          "bookingDate" : 1793534400,
+          "name" : "INTEREST"
+        }
+      ],
+      "type" : "AccountTypeGiro"
+    }
+  ]
+}
